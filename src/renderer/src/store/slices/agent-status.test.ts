@@ -1575,4 +1575,49 @@ describe('automatic-resume claim release on session replacement (Task 2)', () =>
       providerSession: { key: 'session_id', id: 'persisted-session' }
     })
   })
+
+  it('does not release a split-pane sibling claim owned by a different session', () => {
+    vi.useFakeTimers()
+    const store = createTestStore()
+    // Pane A's own sleeping record — the one whose hook event is about to fire.
+    const paneARecord: SleepingAgentSessionRecord = {
+      paneKey: 'tab-1:leaf-a',
+      tabId: 'tab-1',
+      worktreeId: 'wt-1',
+      agent: 'claude',
+      providerSession: { key: 'session_id', id: 'pane-a-old' },
+      prompt: 'earlier prompt',
+      state: 'waiting',
+      capturedAt: 1000,
+      updatedAt: 1000,
+      origin: 'live'
+    }
+    store.setState({
+      sleepingAgentSessionsByPaneKey: { [paneARecord.paneKey]: paneARecord }
+    } as Partial<AppState>)
+    // Split tab: the tab-keyed claim currently belongs to pane B, not pane A
+    // (claimAutomaticAgentResume is last-write-wins per tab — see pty-connection.ts).
+    store.getState().claimAutomaticAgentResume('tab-1', {
+      worktreeId: 'wt-1',
+      launchAgent: 'claude',
+      providerSession: { key: 'session_id', id: 'pane-b-session' }
+    })
+
+    store
+      .getState()
+      .setAgentStatus(
+        'tab-1:leaf-a',
+        { state: 'working', prompt: 'continuing', agentType: 'claude' },
+        'Claude',
+        undefined,
+        { worktreeId: 'wt-1', tabId: 'tab-1' },
+        { providerSession: { key: 'session_id', id: 'pane-a-new' } }
+      )
+
+    expect(store.getState().automaticAgentResumeClaimsByTabId['tab-1']).toEqual({
+      worktreeId: 'wt-1',
+      launchAgent: 'claude',
+      providerSession: { key: 'session_id', id: 'pane-b-session' }
+    })
+  })
 })

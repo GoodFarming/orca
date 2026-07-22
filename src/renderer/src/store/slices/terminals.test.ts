@@ -11,8 +11,8 @@ describe('claimAutomaticAgentResume', () => {
   // Why: Task 2 (pty-connection.ts cold-restore spawn) relies on this exact
   // claim shape to block a duplicate worktree-activation resume while the
   // spawning pane's sleeping record is deliberately left in place. See
-  // resume-sleeping-agent-session.ts:118-127 for the reader that matches on
-  // worktreeId/launchAgent/providerSession.
+  // activeOrQueuedResumeClaimsProviderSession in resume-sleeping-agent-session.ts
+  // for the reader that matches on worktreeId/launchAgent/providerSession.
   it('cold-restore claim blocks duplicate activation resume for the same session', () => {
     useAppStore.getState().claimAutomaticAgentResume('tab-1', {
       worktreeId: 'wt-1',

@@ -71,7 +71,6 @@ test('resumes an agent session after quit when its daemon PTY died while the app
     test.skip(true, 'Global setup did not produce a seeded test repo')
     return
   }
-  test.skip(process.platform === 'win32', 'Uses POSIX SIGKILL to simulate daemon death')
 
   const session = createRestartSession(testInfo)
   let firstApp: ElectronApplication | null = null
@@ -131,8 +130,12 @@ test('resumes an agent session after quit when its daemon PTY died while the app
 
     // Why: simulates the daemon (and the agent CLI inside it) dying while the
     // app is closed — reboot, crash, or update kill. SIGKILL leaves history
-    // checkpoints unclean so the relaunch takes the cold-restore path.
+    // checkpoints unclean so the relaunch takes the cold-restore path. On
+    // Windows, Node maps SIGKILL to TerminateProcess, giving the same abrupt
+    // "no clean shutdown" semantics as POSIX SIGKILL.
     process.kill(daemonPid, 'SIGKILL')
+
+    overrideResumeLaunchCommand(session.userDataDir, PROVIDER_SESSION_ID)
 
     const secondLaunch = await session.launch()
     secondApp = secondLaunch.app

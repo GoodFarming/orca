@@ -3,7 +3,7 @@ import {
   agentProviderSessionsEqual,
   type SleepingAgentSessionRecord
 } from '../../../shared/agent-session-resume'
-import { AGENT_STATUS_STALE_AFTER_MS } from '../../../shared/agent-status-types'
+import { SLEEPING_AGENT_RECORD_MAX_AGE_MS } from '../../../shared/agent-session-resume'
 import {
   getProviderSessionClaimKey,
   isPassiveCompletedHibernationEvidence,
@@ -79,6 +79,22 @@ function getAgentStatusTabId(entry: {
   return separatorIndex === -1 ? null : entry.paneKey.slice(0, separatorIndex)
 }
 
+// Why: a pane's own cold-restore claim covers its still-present record until
+// a hook event replaces it (Task 2) — it must not read as a stale duplicate.
+function ownTabResumeClaimMatchesProviderSession(
+  record: SleepingAgentSessionRecord,
+  state: ReturnType<typeof useAppStore.getState>
+): boolean {
+  const tabId = getAgentStatusTabId(record)
+  const claim = tabId ? state.automaticAgentResumeClaimsByTabId[tabId] : undefined
+  return Boolean(
+    claim &&
+    claim.worktreeId === record.worktreeId &&
+    claim.launchAgent === record.agent &&
+    agentProviderSessionsEqual(record.agent, claim.providerSession, record.providerSession)
+  )
+}
+
 function activeOrQueuedResumeClaimsProviderSession(
   record: SleepingAgentSessionRecord,
   state: ReturnType<typeof useAppStore.getState>,
@@ -117,8 +133,12 @@ function activeOrQueuedResumeClaimsProviderSession(
     }
   }
 
+  // Why: the record's own tab is handled by ownTabResumeClaimMatchesProviderSession
+  // instead — excluded here so its claim never triggers the clear-as-duplicate path.
+  const recordTabId = getAgentStatusTabId(record)
   for (const [tabId, claim] of Object.entries(state.automaticAgentResumeClaimsByTabId)) {
     if (
+      tabId !== recordTabId &&
       worktreeTabIds.has(tabId) &&
       claim.worktreeId === record.worktreeId &&
       claim.launchAgent === record.agent &&
@@ -137,7 +157,7 @@ function isInvalidWorktreeActivationRecord(record: SleepingAgentSessionRecord): 
     return true
   }
   return (
-    record.state !== 'done' && record.capturedAt - record.updatedAt > AGENT_STATUS_STALE_AFTER_MS
+    record.state !== 'done' && Date.now() - record.capturedAt > SLEEPING_AGENT_RECORD_MAX_AGE_MS
   )
 }
 

@@ -5026,8 +5026,8 @@ export function connectPanePty(
         leafId: pane.leafId
       })
       if (!startup.useLiveEntry && startup.sleepingRecordEntry) {
-        // Why: the record now survives this spawn, so a claim is what blocks
-        // worktree-activation from double-launching the same provider session.
+        // Why: claims are keyed per tab, so a split tab's second pane overwrites
+        // the first's; resumeSleepingAgentSessionsForWorktree's pane-owned check backstops split-tab safety.
         state.claimAutomaticAgentResume(deps.tabId, {
           worktreeId: deps.worktreeId,
           launchAgent: startup.agent,
