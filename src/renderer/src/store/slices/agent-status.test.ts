@@ -1500,3 +1500,79 @@ describe('session-boundary done semantics (STA-3386)', () => {
     expect(store.getState().agentStatusByPaneKey[PANE].sessionBoundary).toBeUndefined()
   })
 })
+
+describe('automatic-resume claim release on session replacement (Task 2)', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function seedClaimedRecord(store: ReturnType<typeof createTestStore>): void {
+    const record: SleepingAgentSessionRecord = {
+      paneKey: 'tab-1:leaf-1',
+      tabId: 'tab-1',
+      worktreeId: 'wt-1',
+      agent: 'claude',
+      providerSession: { key: 'session_id', id: 'persisted-session' },
+      prompt: 'earlier prompt',
+      state: 'waiting',
+      capturedAt: 1000,
+      updatedAt: 1000,
+      origin: 'live'
+    }
+    store.setState({
+      sleepingAgentSessionsByPaneKey: { [record.paneKey]: record }
+    } as Partial<AppState>)
+    // Why: mirrors the claim pty-connection.ts registers at cold-restore
+    // spawn time, before the resumed agent's own hook event has landed.
+    store.getState().claimAutomaticAgentResume('tab-1', {
+      worktreeId: 'wt-1',
+      launchAgent: 'claude',
+      providerSession: { key: 'session_id', id: 'persisted-session' }
+    })
+  }
+
+  it('releases the claim once a hook event reports a different provider session', () => {
+    vi.useFakeTimers()
+    const store = createTestStore()
+    seedClaimedRecord(store)
+
+    store
+      .getState()
+      .setAgentStatus(
+        'tab-1:leaf-1',
+        { state: 'working', prompt: 'continuing', agentType: 'claude' },
+        'Claude',
+        undefined,
+        { worktreeId: 'wt-1', tabId: 'tab-1' },
+        { providerSession: { key: 'session_id', id: 'fresh-session' } }
+      )
+
+    expect(
+      store.getState().sleepingAgentSessionsByPaneKey['tab-1:leaf-1']?.providerSession.id
+    ).toBe('fresh-session')
+    expect(store.getState().automaticAgentResumeClaimsByTabId['tab-1']).toBeUndefined()
+  })
+
+  it('keeps the claim when the hook event confirms the same provider session', () => {
+    vi.useFakeTimers()
+    const store = createTestStore()
+    seedClaimedRecord(store)
+
+    store
+      .getState()
+      .setAgentStatus(
+        'tab-1:leaf-1',
+        { state: 'working', prompt: 'continuing', agentType: 'claude' },
+        'Claude',
+        undefined,
+        { worktreeId: 'wt-1', tabId: 'tab-1' },
+        { providerSession: { key: 'session_id', id: 'persisted-session' } }
+      )
+
+    expect(store.getState().automaticAgentResumeClaimsByTabId['tab-1']).toEqual({
+      worktreeId: 'wt-1',
+      launchAgent: 'claude',
+      providerSession: { key: 'session_id', id: 'persisted-session' }
+    })
+  })
+})

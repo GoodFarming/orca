@@ -2078,11 +2078,27 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
           nextLaunchConfigs = { ...s.agentLaunchConfigByPaneKey }
           delete nextLaunchConfigs[paneKey]
         }
+        let nextAutomaticAgentResumeClaimsByTabId = s.automaticAgentResumeClaimsByTabId
         if (liveRecoveryRecord) {
           if (!recoveryRecordMatches(existingSleepingRecord, liveRecoveryRecord)) {
             nextSleepingAgentSessions = {
               ...s.sleepingAgentSessionsByPaneKey,
               [paneKey]: liveRecoveryRecord
+            }
+            // Why: a hook-confirmed session change fulfills the cold-restore
+            // claim (pty-connection.ts); release it so a later sleeping
+            // session on this tab is not blocked by a stale claim.
+            if (
+              statusTabId &&
+              existingSleepingRecord &&
+              !providerSessionsEqual(
+                existingSleepingRecord.providerSession,
+                liveRecoveryRecord.providerSession
+              ) &&
+              statusTabId in s.automaticAgentResumeClaimsByTabId
+            ) {
+              nextAutomaticAgentResumeClaimsByTabId = { ...s.automaticAgentResumeClaimsByTabId }
+              delete nextAutomaticAgentResumeClaimsByTabId[statusTabId]
             }
           }
         } else if (existingSleepingRecord) {
@@ -2110,6 +2126,9 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
           agentLaunchConfigByPaneKey: nextLaunchConfigs,
           migrationUnsupportedByPtyId: migrationUnsupported.next,
           retentionSuppressedPaneKeys: nextRetentionSuppressedPaneKeys,
+          ...(nextAutomaticAgentResumeClaimsByTabId !== s.automaticAgentResumeClaimsByTabId
+            ? { automaticAgentResumeClaimsByTabId: nextAutomaticAgentResumeClaimsByTabId }
+            : {}),
           agentStatusEpoch:
             retentionRelevantChange || migrationUnsupported.changed || evictedOrphans
               ? s.agentStatusEpoch + 1

@@ -1221,12 +1221,19 @@ export function connectPanePty(
     'legacy-orchestration-worker'
   const clearSleepingRecordProviderDuplicates = (
     state: ReturnType<typeof useAppStore.getState>,
-    consumed: { paneKey: string; record: SleepingAgentSessionRecord }
+    consumed: { paneKey: string; record: SleepingAgentSessionRecord },
+    // Why: a failed cold-restore spawn must not lose the session, so the
+    // resuming pane's own key is excluded from the clear (legacy aliases lack
+    // this protection — they never receive the resumed agent's hook event).
+    excludePaneKey?: string
   ): void => {
-    state.clearSleepingAgentSession(consumed.paneKey)
+    if (consumed.paneKey !== excludePaneKey) {
+      state.clearSleepingAgentSession(consumed.paneKey)
+    }
     for (const [paneKey, record] of Object.entries(state.sleepingAgentSessionsByPaneKey)) {
       if (
         paneKey !== consumed.paneKey &&
+        paneKey !== excludePaneKey &&
         record.worktreeId === consumed.record.worktreeId &&
         record.agent === consumed.record.agent &&
         agentProviderSessionsEqual(
@@ -5018,13 +5025,28 @@ export function connectPanePty(
         tabId: deps.tabId,
         leafId: pane.leafId
       })
+      if (!startup.useLiveEntry && startup.sleepingRecordEntry) {
+        // Why: the record now survives this spawn, so a claim is what blocks
+        // worktree-activation from double-launching the same provider session.
+        state.claimAutomaticAgentResume(deps.tabId, {
+          worktreeId: deps.worktreeId,
+          launchAgent: startup.agent,
+          providerSession: startup.sleepingRecordEntry.record.providerSession
+        })
+      }
       return true
     }
     const clearSleepingRecordAfterColdRestoreSpawn = (
       startup: ColdRestoreAgentResumeStartup | null
     ): void => {
       if (startup && !startup.useLiveEntry && startup.sleepingRecordEntry) {
-        clearSleepingRecordProviderDuplicates(useAppStore.getState(), startup.sleepingRecordEntry)
+        // Why: only clear duplicate aliases here — the spawning pane's own
+        // record survives until the resumed agent's hook event confirms it.
+        clearSleepingRecordProviderDuplicates(
+          useAppStore.getState(),
+          startup.sleepingRecordEntry,
+          cacheKey
+        )
       }
     }
     const mergeStartupEnvWithPaneIdentity = (
