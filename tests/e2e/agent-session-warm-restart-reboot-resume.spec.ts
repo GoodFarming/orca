@@ -87,7 +87,7 @@ function readDaemonPid(userDataDir: string): number {
 
 test.describe.configure({ mode: 'serial' })
 
-test('resumes an agent session after a warm restart followed by daemon death', async (// oxlint-disable-next-line no-empty-pattern -- Playwright's second fixture arg is testInfo; the first must be an object destructure to opt out of the default fixture set.
+test('resumes a completed agent session after a warm restart followed by daemon death', async (// oxlint-disable-next-line no-empty-pattern -- Playwright's second fixture arg is testInfo; the first must be an object destructure to opt out of the default fixture set.
 {}, testInfo) => {
   const repoPath = readFileSync(TEST_REPO_PATH_FILE, 'utf-8').trim()
   if (!repoPath || !existsSync(repoPath)) {
@@ -123,6 +123,7 @@ test('resumes an agent session after a warm restart followed by daemon death', a
     // CLI install or auth) while exercising the identical persistence path.
     await page.evaluate(
       ({ paneKey, worktreeId: wtId, providerSessionId }) => {
+        const providerSession = { key: 'session_id' as const, id: providerSessionId }
         window.__store
           ?.getState()
           .setAgentStatus(
@@ -131,7 +132,17 @@ test('resumes an agent session after a warm restart followed by daemon death', a
             'Codex',
             undefined,
             { worktreeId: wtId },
-            { providerSession: { key: 'session_id', id: providerSessionId } }
+            { providerSession }
+          )
+        window.__store
+          ?.getState()
+          .setAgentStatus(
+            paneKey,
+            { state: 'done', prompt: 'finish the task', agentType: 'codex' },
+            'Codex',
+            undefined,
+            { worktreeId: wtId },
+            { providerSession }
           )
       },
       {

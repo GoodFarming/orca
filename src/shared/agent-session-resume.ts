@@ -277,3 +277,27 @@ export function getAgentResumeArgv(
         : null
   }
 }
+
+/** Matches a completed visible row to its still-resumable live TUI checkpoint. */
+export function isCompletedAgentWithLiveRecoveryRecord(
+  entry:
+    | {
+        state: AgentStatusState
+        agentType?: string
+        providerSession?: AgentProviderSessionMetadata
+        worktreeId?: string
+      }
+    | undefined,
+  record: SleepingAgentSessionRecord | undefined
+): record is SleepingAgentSessionRecord {
+  return Boolean(
+    entry?.state === 'done' &&
+    isResumableTuiAgent(entry.agentType) &&
+    entry.providerSession &&
+    record?.agent === entry.agentType &&
+    record.origin === 'live' &&
+    (!entry.worktreeId || entry.worktreeId === record.worktreeId) &&
+    agentProviderSessionsEqual(entry.agentType, entry.providerSession, record.providerSession) &&
+    getAgentResumeArgv(record.agent, record.providerSession)
+  )
+}

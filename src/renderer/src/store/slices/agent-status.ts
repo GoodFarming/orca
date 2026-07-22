@@ -15,6 +15,7 @@ import {
 import {
   agentProviderSessionsEqual,
   getAgentResumeArgv,
+  isCompletedAgentWithLiveRecoveryRecord,
   isResumableTuiAgent,
   type AgentProviderSessionMetadata,
   type ResumableTuiAgent,
@@ -551,6 +552,7 @@ function sleepingRecordFromEntry(args: {
     state: args.entry.state,
     capturedAt: args.capturedAt,
     updatedAt: args.entry.updatedAt,
+    ...(args.entry.connectionId !== undefined ? { connectionId: args.entry.connectionId } : {}),
     ...((args.entry.terminalTitle ?? tab?.title)
       ? { terminalTitle: (args.entry.terminalTitle ?? tab?.title)! }
       : {}),
@@ -681,8 +683,7 @@ export function collectSleepingAgentSessionRecordsForWorktree(
       ) {
         continue
       }
-      // Why: Pi identity is resumable with no turn row and while idle after done, so manual
-      // sleep must promote both instead of deleting the checkpoint.
+      // Why: completed resumable TUIs keep recovery identity without a pending turn row.
       records[existing.paneKey] = {
         ...existing,
         state: 'working',
@@ -2080,7 +2081,10 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
         }
         let nextAutomaticAgentResumeClaimsByTabId = s.automaticAgentResumeClaimsByTabId
         if (liveRecoveryRecord) {
-          if (!recoveryRecordMatches(existingSleepingRecord, liveRecoveryRecord)) {
+          if (
+            retainsCompletedRecoveryIdentity ||
+            !recoveryRecordMatches(existingSleepingRecord, liveRecoveryRecord)
+          ) {
             nextSleepingAgentSessions = {
               ...s.sleepingAgentSessionsByPaneKey,
               [paneKey]: liveRecoveryRecord

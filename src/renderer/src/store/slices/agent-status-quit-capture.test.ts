@@ -729,7 +729,7 @@ describe('captureAllSleepingAgentSessions', () => {
     }
   )
 
-  it('does not reuse launch config from a completed same-pane agent', () => {
+  it('reuses recovery identity and launch config for the next turn in the same Codex TUI', () => {
     const store = createTestStore()
     store.setState({
       tabsByWorktree: {
@@ -776,11 +776,11 @@ describe('captureAllSleepingAgentSessions', () => {
       )
 
     const entry = store.getState().agentStatusByPaneKey['tab-1:leaf-1']
-    expect(entry?.providerSession).toBeUndefined()
-    expect(entry).not.toHaveProperty('launchConfig')
-    expect(
-      store.getState().sleepingAgentSessionsByPaneKey['tab-1:leaf-1']?.launchConfig
-    ).toBeUndefined()
+    expect(entry?.providerSession).toEqual({ key: 'session_id', id: 'codex-session-1' })
+    expect(store.getState().sleepingAgentSessionsByPaneKey['tab-1:leaf-1']?.launchConfig).toEqual({
+      agentArgs: '--model gpt-5',
+      agentEnv: { CODEX_PROFILE: 'captured' }
+    })
   })
 
   it('captures resumable agents across every worktree, not just one', () => {
@@ -823,7 +823,7 @@ describe('captureAllSleepingAgentSessions', () => {
     })
   })
 
-  it('skips done agents — there is no turn left to resume', () => {
+  it('skips done agents that have no live recovery checkpoint', () => {
     const store = createTestStore()
     const entry = makeAgentEntry({
       paneKey: 'tab-1:leaf-1',

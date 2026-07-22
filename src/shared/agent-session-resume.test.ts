@@ -3,6 +3,7 @@ import {
   agentProviderSessionsEqual,
   extractAgentProviderSession,
   getAgentResumeArgv,
+  isCompletedAgentWithLiveRecoveryRecord,
   isResumableTuiAgent,
   normalizeAgentProviderSession
 } from './agent-session-resume'
@@ -87,6 +88,47 @@ describe('agent session resume metadata', () => {
     expect(agentProviderSessionsEqual('pi', first, second)).toBe(false)
     expect(agentProviderSessionsEqual('claude', first, second)).toBe(true)
   })
+
+  it.each([
+    ['codex', { key: 'session_id' as const, id: 'codex-session' }],
+    [
+      'pi',
+      {
+        key: 'session_id' as const,
+        id: 'pi-session',
+        transcriptPath: '/tmp/pi-session.jsonl'
+      }
+    ]
+  ] as const)(
+    'recognizes completed %s sessions with live recovery records',
+    (agentType, providerSession) => {
+      const record = {
+        paneKey: 'tab-1:leaf-1',
+        tabId: 'tab-1',
+        worktreeId: 'wt-1',
+        agent: agentType,
+        providerSession,
+        prompt: '',
+        state: 'working' as const,
+        capturedAt: 10,
+        updatedAt: 10,
+        origin: 'live' as const
+      }
+
+      expect(
+        isCompletedAgentWithLiveRecoveryRecord(
+          { state: 'done', agentType, providerSession, worktreeId: 'wt-1' },
+          record
+        )
+      ).toBe(true)
+      expect(
+        isCompletedAgentWithLiveRecoveryRecord(
+          { state: 'done', agentType, providerSession, worktreeId: 'wt-1' },
+          { ...record, origin: 'quit' }
+        )
+      ).toBe(false)
+    }
+  )
 
   it('rejects devin resume when provider session key is not session_id', () => {
     expect(getAgentResumeArgv('devin', { key: 'conversation_id', id: 'x' })).toBeNull()

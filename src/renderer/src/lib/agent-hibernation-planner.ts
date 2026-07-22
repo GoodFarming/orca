@@ -1,6 +1,7 @@
 import type { AgentStatusEntry } from '../../../shared/agent-status-types'
 import {
   getAgentResumeArgv,
+  isCompletedAgentWithLiveRecoveryRecord,
   isResumableTuiAgent,
   type SleepingAgentSessionRecord
 } from '../../../shared/agent-session-resume'
