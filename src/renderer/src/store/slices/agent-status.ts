@@ -1846,7 +1846,8 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
           (existing.state !== 'done' || payload.state === 'done')
         const providerSession =
           metadata?.providerSession ??
-          (canReuseExistingProviderSession ? existing.providerSession : undefined)
+          (canReuseExistingProviderSession ? existing.providerSession : undefined) ??
+          rehydratedProviderSession
         const existingProviderSession = canReuseExistingProviderSession
           ? existing.providerSession
           : undefined
