@@ -21,6 +21,7 @@ import { getBrowserCookieImportSourceLabels } from '../../../../shared/browser-c
 import { shouldShowBrowserImportHint } from './browser-import-hint-visibility'
 import { formatBrowserImportSummary } from './browser-detected-browsers-summary'
 import { translate } from '@/i18n/i18n'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 
 type BrowserImportHintButtonProps = {
   profileId: string | null
@@ -73,7 +74,7 @@ export function BrowserImportHintButton({
       if (nextOpen) {
         // Why: macOS treats other browsers' profile folders as app data. Only
         // probe them when the user opens the import hint.
-        void fetchDetectedBrowsers()
+        void fetchDetectedBrowsers(LOCAL_EXECUTION_HOST_ID)
       }
     },
     [fetchDetectedBrowsers]
@@ -86,7 +87,8 @@ export function BrowserImportHintButton({
       const result = await importCookiesFromBrowser(
         effectiveProfileId,
         browserFamily,
-        browserProfile
+        browserProfile,
+        LOCAL_EXECUTION_HOST_ID
       )
       if (result.ok) {
         const browser = detectedBrowsers.find((entry) => entry.family === browserFamily)
@@ -112,7 +114,7 @@ export function BrowserImportHintButton({
   const handleImportFromFile = useCallback(async (): Promise<void> => {
     setOpen(false)
     setImportMenuOpen(false)
-    const result = await importCookiesToProfile(effectiveProfileId)
+    const result = await importCookiesToProfile(effectiveProfileId, LOCAL_EXECUTION_HOST_ID)
     if (result.ok) {
       emitBrowserCookieImportToast(
         result.summary,

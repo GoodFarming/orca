@@ -1066,6 +1066,68 @@ describe('createBrowserSlice runtime guard', () => {
     })
   })
 
+  it('imports from an explicit local browser host while a runtime is active', async () => {
+    const store = createTestStore()
+    store.setState({ settings: settingsWithRuntime('env-1') })
+    mockApi.browser.sessionDetectBrowsers.mockResolvedValueOnce([
+      {
+        family: 'chrome',
+        label: 'Chrome',
+        profiles: [{ name: 'Default', directory: 'Default' }],
+        selectedProfile: 'Default'
+      }
+    ])
+    mockApi.browser.sessionImportFromBrowser.mockResolvedValueOnce({
+      ok: true,
+      profileId: 'default',
+      summary: {
+        totalCookies: 2,
+        importedCookies: 2,
+        skippedCookies: 0,
+        domains: ['google.com', 'github.com']
+      }
+    })
+
+    await store.getState().fetchDetectedBrowsers('local')
+    const result = await store
+      .getState()
+      .importCookiesFromBrowser('default', 'chrome', 'Default', 'local')
+
+    expect(mockApi.browser.sessionDetectBrowsers).toHaveBeenCalledTimes(1)
+    expect(mockApi.browser.sessionImportFromBrowser).toHaveBeenCalledWith({
+      profileId: 'default',
+      browserFamily: 'chrome',
+      browserProfile: 'Default'
+    })
+    expect(runtimeEnvironmentCall).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'browser.profileDetectBrowsers' })
+    )
+    expect(runtimeEnvironmentCall).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'browser.profileImportFromBrowser' })
+    )
+    expect(result.ok).toBe(true)
+  })
+
+  it('allows explicit local cookie files while a runtime is active', async () => {
+    const store = createTestStore()
+    store.setState({ settings: settingsWithRuntime('env-1') })
+    mockApi.browser.sessionImportCookies.mockResolvedValueOnce({
+      ok: true,
+      profileId: 'default',
+      summary: {
+        totalCookies: 1,
+        importedCookies: 1,
+        skippedCookies: 0,
+        domains: ['google.com']
+      }
+    })
+
+    const result = await store.getState().importCookiesToProfile('default', 'local')
+
+    expect(mockApi.browser.sessionImportCookies).toHaveBeenCalledWith({ profileId: 'default' })
+    expect(result.ok).toBe(true)
+  })
+
   it('uses local browser IPC when no runtime environment is active', async () => {
     const store = createTestStore()
     mockApi.browser.sessionListProfiles.mockResolvedValueOnce([

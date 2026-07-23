@@ -5507,10 +5507,10 @@
           "7b649a578a": "Creando…",
           "4399c77caa": "Predeterminado",
           "4af9a17947": "kagi",
-          "c0f85056d9": "Perfiles del navegador en este servidor de Orca.",
-          "86b7c83fee": "Este equipo",
-          "6480776a03": "Perfiles del navegador para el host seleccionado.",
-          "5e19a692f7": "Host"
+          "c0f85056d9": "Gestiona los perfiles y las cookies de este servidor. Esto no controla dónde se ejecutan las pestañas del navegador.",
+          "86b7c83fee": "Gestiona los perfiles y las cookies locales. Esto no controla dónde se ejecutan las pestañas del navegador.",
+          "6480776a03": "Gestiona los perfiles y las cookies de este host. Esto no controla dónde se ejecutan las pestañas del navegador.",
+          "5e19a692f7": "Host de perfiles y cookies"
         },
         "BrowserProfileRow": {
           "8e636cae25": "Perfil \"{{value0}}\" eliminado.",

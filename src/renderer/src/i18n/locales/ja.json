@@ -5492,10 +5492,10 @@
           "7b649a578a": "作成…",
           "4399c77caa": "デフォルト",
           "4af9a17947": "kagi",
-          "c0f85056d9": "Browser profiles on this Orca server.",
-          "86b7c83fee": "This computer",
-          "6480776a03": "Browser profiles for the selected host.",
-          "5e19a692f7": "ホスト"
+          "c0f85056d9": "このサーバーのプロファイルと Cookie を管理します。ブラウザータブの実行場所は変更されません。",
+          "86b7c83fee": "ローカルのプロファイルと Cookie を管理します。ブラウザータブの実行場所は変更されません。",
+          "6480776a03": "このホストのプロファイルと Cookie を管理します。ブラウザータブの実行場所は変更されません。",
+          "5e19a692f7": "プロファイルと Cookie のホスト"
         },
         "BrowserProfileRow": {
           "8e636cae25": "プロファイル「{{value0}}」が削除されました。",

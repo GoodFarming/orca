@@ -61,6 +61,7 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { useAppStore } from '@/store'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { ORCA_BROWSER_BLANK_URL, ORCA_BROWSER_PARTITION } from '../../../../shared/constants'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import { BROWSER_CERTIFICATE_TRUST_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
 import { getOrcaProfileBrowserDefaultPartition } from '../../../../shared/orca-profiles'
 import type {
@@ -3062,7 +3063,9 @@ function BrowserPagePane({
   clearBrowserPageAnnotationsRef.current = clearBrowserPageAnnotations
   const createBrowserTab = useAppStore((s) => s.createBrowserTab)
   const consumeAddressBarFocusRequest = useAppStore((s) => s.consumeAddressBarFocusRequest)
-  const browserSessionProfiles = useAppStore((s) => s.browserSessionProfiles)
+  const browserSessionProfiles = useAppStore(
+    (s) => s.browserSessionProfilesByHostId[LOCAL_EXECUTION_HOST_ID] ?? s.browserSessionProfiles
+  )
   const activeOrcaProfileId = useAppStore((s) => s.activeOrcaProfileId)
   const fallbackBrowserPartition = activeOrcaProfileId
     ? getOrcaProfileBrowserDefaultPartition(activeOrcaProfileId)
