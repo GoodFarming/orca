@@ -1,6 +1,5 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import path from 'node:path'
 import type { Page } from '@stablyai/playwright-test'
 import { test, expect } from './helpers/orca-app'
 import {
@@ -8,12 +7,11 @@ import {
   launchPairedElectronClient,
   type PairedElectronClient
 } from './helpers/paired-electron-client'
-import { cleanupMarkdownFixture, createMarkdownFixture } from './helpers/markdown-ordered-list-exit'
 import { ensureTerminalVisible } from './helpers/store'
 import { waitForActivePanePtyId } from './helpers/terminal'
 
-type RoutingServer = {
-  destinationUrl: string
+type DestinationServer = {
+  url: string
   close: () => Promise<void>
 }
 
@@ -34,19 +32,19 @@ async function closeServer(server: Server): Promise<void> {
   })
 }
 
-async function startRoutingServer(): Promise<RoutingServer> {
+async function startDestinationServer(): Promise<DestinationServer> {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
     response.end(`<!doctype html>
       <html>
-        <head><title>Local routing destination</title></head>
-        <body><h1 id="routing-marker">Opened on this computer</h1></body>
+        <head><title>Local browser destination</title></head>
+        <body><h1 id="browser-host-marker">Opened on this computer</h1></body>
       </html>`)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const port = (server.address() as AddressInfo).port
   return {
-    destinationUrl: `http://127.0.0.1:${port}/destination`,
+    url: `http://127.0.0.1:${port}/destination`,
     close: () => closeServer(server)
   }
 }
@@ -71,32 +69,47 @@ async function openBrowserSettings(page: Page): Promise<void> {
   await dismissTransientAnnouncement(page)
 }
 
-async function seedWorkspaceRoutingPreference(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const nextSettings = await window.api.settings.set({
-      browserLinkRoutingHost: 'workspace',
-      openLinksInApp: true,
-      openLinksInAppPreferencePrompted: true
-    })
-    window.__store?.setState({ settings: nextSettings })
-  })
+async function seedWorkspaceBrowserHost(page: Page, browserDefaultUrl: string): Promise<void> {
+  await page.evaluate(
+    async ({ browserDefaultUrl }) => {
+      const nextSettings = await window.api.settings.set({
+        browserTabHost: 'workspace',
+        openLinksInApp: false,
+        openLinksInAppPreferencePrompted: true
+      })
+      const state = window.__store?.getState()
+      if (!state) {
+        throw new Error('Paired desktop store is unavailable')
+      }
+      window.__store?.setState({ settings: nextSettings })
+      state.setBrowserDefaultUrl(browserDefaultUrl)
+    },
+    { browserDefaultUrl }
+  )
 }
 
-async function setLinkRoutingToLocalThroughUi(page: Page): Promise<void> {
+async function setBrowserTabHostToLocalThroughUi(page: Page): Promise<void> {
   const search = page.getByPlaceholder('Search settings')
   await search.fill('link routing')
   const linkRoutingSwitch = page.getByRole('switch', { name: 'Link Routing' })
   await expect(linkRoutingSwitch).toBeVisible()
-  await expect(linkRoutingSwitch).toHaveAttribute('aria-checked', 'true')
+  await expect(linkRoutingSwitch).toHaveAttribute('aria-checked', 'false')
 
-  await search.fill('open links on')
-  const routingHostSelect = page.getByRole('combobox').filter({
+  await search.fill('browser tab host')
+  await expect(page.getByText('Browser tab host', { exact: true }).first()).toBeVisible()
+  await expect(
+    page
+      .getByText('Choose where new browser tabs and links routed into Orca Browser run.', {
+        exact: true
+      })
+      .first()
+  ).toBeVisible()
+  const browserHostSelect = page.getByRole('combobox').filter({
     hasText: 'Workspace runtime'
   })
-  await expect(routingHostSelect).toBeVisible()
-  await expect(routingHostSelect).toContainText('Workspace runtime')
+  await expect(browserHostSelect).toBeVisible()
 
-  await routingHostSelect.evaluate((element) => {
+  await browserHostSelect.evaluate((element) => {
     const trigger = element as HTMLElement
     trigger.focus()
     element.dispatchEvent(
@@ -118,7 +131,10 @@ async function setLinkRoutingToLocalThroughUi(page: Page): Promise<void> {
     )
   })
   await expect
-    .poll(async () => (await page.evaluate(() => window.api.settings.get())).browserLinkRoutingHost)
+    .poll(async () => (await page.evaluate(() => window.api.settings.get())).browserTabHost)
+    .toBe('local')
+  await expect
+    .poll(() => page.evaluate(() => window.__store?.getState().settings?.browserTabHost))
     .toBe('local')
 }
 
@@ -166,136 +182,28 @@ async function activatePairedWorktree(page: Page, repoId: string): Promise<Paire
   return worktree
 }
 
-async function openRuntimeMarkdown(
-  client: PairedElectronClient,
-  worktree: PairedWorktree,
-  filePath: string
-): Promise<void> {
-  await client.page.evaluate(
-    ({ environmentId, filePath, relativePath, worktreeId }) => {
-      const state = window.__store?.getState()
-      if (!state) {
-        throw new Error('Paired desktop store is unavailable')
-      }
-      state.openFile({
-        filePath,
-        relativePath,
-        worktreeId,
-        language: 'markdown',
-        mode: 'edit',
-        runtimeEnvironmentId: environmentId
-      })
-    },
-    {
-      environmentId: client.environmentId,
-      filePath,
-      relativePath: path.relative(worktree.path, filePath),
-      worktreeId: worktree.id
-    }
-  )
-  let fileId: string | null = null
-  await expect
-    .poll(
-      async () => {
-        fileId = await client.page.evaluate(
-          ({ filePath, worktreeId }) =>
-            window.__store
-              ?.getState()
-              .openFiles.find(
-                (candidate) =>
-                  candidate.filePath === filePath && candidate.worktreeId === worktreeId
-              )?.id ?? null,
-          { filePath, worktreeId: worktree.id }
+async function renderedTabIds(page: Page): Promise<string[]> {
+  return page
+    .locator('.terminal-tab-strip [data-tab-id]')
+    .evaluateAll((tabs) =>
+      Array.from(
+        new Set(
+          tabs
+            .map((tab) => tab.getAttribute('data-tab-id'))
+            .filter((tabId): tabId is string => Boolean(tabId))
         )
-        return fileId
-      },
-      { timeout: 30_000, message: `Paired desktop did not register ${filePath}` }
-    )
-    .not.toBeNull()
-  let tabId: string | null = null
-  await expect
-    .poll(
-      async () => {
-        tabId = await client.page.evaluate(
-          ({ fileId, worktreeId }) =>
-            window.__store
-              ?.getState()
-              .unifiedTabsByWorktree[worktreeId]?.find(
-                (candidate) => candidate.entityId === fileId && candidate.contentType === 'editor'
-              )?.id ?? null,
-          { fileId, worktreeId: worktree.id }
-        )
-        return tabId
-      },
-      { timeout: 30_000, message: `Paired desktop did not create an editor tab for ${filePath}` }
-    )
-    .not.toBeNull()
-  await client.page.evaluate(
-    ({ fileId, tabId, worktreeId }) => {
-      const state = window.__store?.getState()
-      if (!state) {
-        throw new Error('Paired desktop store is unavailable')
-      }
-      const tab = state.unifiedTabsByWorktree[worktreeId]?.find(
-        (candidate) => candidate.id === tabId
       )
-      if (!tab) {
-        throw new Error(`Paired desktop editor tab disappeared: ${tabId}`)
-      }
-      state.focusGroup(worktreeId, tab.groupId)
-      state.activateTab(tabId)
-      state.setActiveFile(fileId)
-      state.setActiveTabType('editor')
-      state.setActiveView('terminal')
-    },
-    { fileId: fileId!, tabId: tabId!, worktreeId: worktree.id }
-  )
-  await expect
-    .poll(
-      () =>
-        client.page.evaluate(
-          ({ fileId, tabId, worktreeId }) => {
-            const state = window.__store?.getState()
-            const groupId = state?.activeGroupIdByWorktree[worktreeId]
-            const group = state?.groupsByWorktree[worktreeId]?.find(
-              (candidate) => candidate.id === groupId
-            )
-            const editorVisible = Array.from(
-              document.querySelectorAll<HTMLElement>('.rich-markdown-editor')
-            ).some((editor) => editor.offsetWidth > 0 && editor.offsetHeight > 0)
-            return {
-              activeFileId: state?.activeFileId ?? null,
-              activeTabType: state?.activeTabType ?? null,
-              activeView: state?.activeView ?? null,
-              activeWorktreeId: state?.activeWorktreeId ?? null,
-              editorVisible,
-              groupActiveTabId: group?.activeTabId ?? null,
-              groupId: group?.id ?? null,
-              targetFileId: fileId,
-              targetTabId: tabId
-            }
-          },
-          { fileId: fileId!, tabId: tabId!, worktreeId: worktree.id }
-        ),
-      { timeout: 25_000, message: `Runtime editor did not become visible for ${filePath}` }
     )
-    .toMatchObject({
-      activeFileId: fileId,
-      activeTabType: 'editor',
-      activeView: 'terminal',
-      activeWorktreeId: worktree.id,
-      editorVisible: true,
-      groupActiveTabId: tabId
-    })
 }
 
-async function readBrowserDestination(
+async function readNewBrowserDestination(
   page: Page,
   worktreeId: string,
   existingBrowserTabIds: string[]
 ): Promise<{
   browserRuntimeEnvironmentId: string | null | undefined
   marker: string | null
+  tabId: string
   terminalTabIds: string[]
   url: string
 } | null> {
@@ -321,11 +229,12 @@ async function readBrowserDestination(
       }
       try {
         const marker = (await webview.executeJavaScript(
-          'document.querySelector("#routing-marker")?.textContent ?? null'
+          'document.querySelector("#browser-host-marker")?.textContent ?? null'
         )) as string | null
         return {
           browserRuntimeEnvironmentId: browserPage.browserRuntimeEnvironmentId,
           marker,
+          tabId: tab.id,
           terminalTabIds: (state.tabsByWorktree[worktreeId] ?? []).map(
             (terminalTab) => terminalTab.id
           ),
@@ -339,14 +248,13 @@ async function readBrowserDestination(
   )
 }
 
-test('a paired desktop keeps a runtime-owned link local when the user selects This computer', async ({
+test('paired New Browser Tab stays local when Browser tab host is This computer', async ({
   orcaPage,
   testRepoPath
 }, testInfo) => {
   test.setTimeout(240_000)
-  const server = await startRoutingServer()
+  const server = await startDestinationServer()
   let client: PairedElectronClient | null = null
-  let markdownPath: string | null = null
 
   try {
     const repoId = await orcaPage.evaluate((repoPath) => {
@@ -358,20 +266,14 @@ test('a paired desktop keeps a runtime-owned link local when the user selects Th
     }, testRepoPath)
 
     const offer = await createRuntimeDesktopPairingOffer(orcaPage)
-    client = await launchPairedElectronClient(offer, testInfo, 'Browser routing user test', {
-      // A fresh paired client can render its disposable local repo while the
-      // session-ready latch remains false. Pair first; the runtime switch is
-      // the readiness boundary this user flow actually depends on.
+    client = await launchPairedElectronClient(offer, testInfo, 'Browser tab host user test', {
       waitForInitialWorkspaceSessionReady: false
     })
     await client.page.setViewportSize({ width: 1600, height: 1000 })
     const worktree = await activatePairedWorktree(client.page, repoId)
-    // The runtime's initial terminal focus notification is asynchronous. Wait
-    // for the pane binding before starting the Settings workflow so the test
-    // does not confuse fixture startup navigation with a setting-triggered jump.
     await waitForActivePanePtyId(client.page, 30_000)
 
-    await seedWorkspaceRoutingPreference(client.page)
+    await seedWorkspaceBrowserHost(client.page, server.url)
     await openBrowserSettings(client.page)
     const search = client.page.getByPlaceholder('Search settings')
     await search.fill('cookies')
@@ -379,14 +281,7 @@ test('a paired desktop keeps a runtime-owned link local when the user selects Th
     await expect(
       client.page.getByText(/This does not control where browser tabs run\./).first()
     ).toBeVisible()
-    await setLinkRoutingToLocalThroughUi(client.page)
-
-    markdownPath = await createMarkdownFixture(
-      { worktreeId: worktree.id, rootPath: worktree.path },
-      'browser-link-routing-host',
-      testInfo.workerIndex,
-      `# Browser routing user test\n\n[Open destination](${server.destinationUrl})\n`
-    )
+    await setBrowserTabHostToLocalThroughUi(client.page)
 
     const before = await client.page.evaluate((worktreeId) => {
       const state = window.__store?.getState()
@@ -395,28 +290,57 @@ test('a paired desktop keeps a runtime-owned link local when the user selects Th
         terminalTabIds: (state?.tabsByWorktree[worktreeId] ?? []).map((tab) => tab.id)
       }
     }, worktree.id)
+    const renderedTabsBefore = await renderedTabIds(client.page)
 
-    await openRuntimeMarkdown(client, worktree, markdownPath)
-    const link = client.page.locator(`.rich-markdown-editor a[href="${server.destinationUrl}"]`)
-    await expect(link).toBeVisible()
-    await link.click({ force: true })
-    const openLink = client.page.getByRole('button', { name: 'Open link' })
-    await expect(openLink).toBeVisible()
-    await openLink.click({ force: true })
+    await client.page.evaluate(() => window.__store?.getState().closeSettingsPage())
+    await client.page.getByRole('button', { name: 'New tab' }).click({ force: true })
+    const newBrowserTabItem = client.page
+      .getByRole('menuitem', { name: /New Browser Tab/i })
+      .first()
+    await newBrowserTabItem.click({ force: true })
 
     await expect
-      .poll(() => readBrowserDestination(client!.page, worktree.id, before.browserTabIds), {
+      .poll(() => renderedTabIds(client!.page), {
         timeout: 15_000,
-        message: 'The runtime-owned link did not load in a local browser tab'
+        message: 'New Browser Tab did not render exactly one additional tab'
       })
-      .toEqual({
+      .toHaveLength(renderedTabsBefore.length + 1)
+
+    let destination: Awaited<ReturnType<typeof readNewBrowserDestination>> = null
+    await expect
+      .poll(
+        async () => {
+          destination = await readNewBrowserDestination(
+            client!.page,
+            worktree.id,
+            before.browserTabIds
+          )
+          return destination
+        },
+        {
+          timeout: 20_000,
+          message: 'The new local browser tab did not load its configured home page'
+        }
+      )
+      .toMatchObject({
         browserRuntimeEnvironmentId: null,
         marker: 'Opened on this computer',
         terminalTabIds: before.terminalTabIds,
-        url: server.destinationUrl
+        url: server.url
       })
+
+    const activeBrowserTab = client.page.locator(
+      `.terminal-tab-strip [data-tab-id="${destination!.tabId}"]`
+    )
+    await expect(activeBrowserTab).toBeVisible()
+    await expect(
+      client.page.locator(`[data-browser-overlay-tab-id="${destination!.tabId}"]`)
+    ).toHaveCSS('opacity', '1')
+    await expect(client.page.locator('[data-rendered-active-worktree-id]')).toHaveAttribute(
+      'data-rendered-active-worktree-id',
+      worktree.id
+    )
   } finally {
-    await cleanupMarkdownFixture(markdownPath)
     await client?.dispose()
     await server.close()
   }

@@ -171,7 +171,7 @@ function resolveBrowserLinkOwner(
   worktreeId: string,
   sourceOwner?: HttpLinkSourceOwner
 ): HttpLinkSourceOwner {
-  if (state.settings?.browserLinkRoutingHost !== 'workspace') {
+  if (state.settings?.browserTabHost !== 'workspace') {
     return { kind: 'local' }
   }
   if (sourceOwner) {

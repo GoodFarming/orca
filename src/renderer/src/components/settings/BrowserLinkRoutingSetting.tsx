@@ -21,13 +21,13 @@ export function BrowserLinkRoutingSetting({
     'auto.components.settings.BrowserPane.d3eb69c0aa',
     'Link Routing'
   )
-  const openLinksTitle = translate(
+  const browserTabHostTitle = translate(
     'auto.components.settings.BrowserLinkRoutingSetting.6bc91cf705',
-    'Open links on'
+    'Browser tab host'
   )
-  const openLinksDescription = translate(
+  const browserTabHostDescription = translate(
     'auto.components.settings.BrowserLinkRoutingSetting.dac59e11e7',
-    'Choose whether routed links open locally or in the workspace runtime.'
+    'Choose where new browser tabs and links routed into Orca Browser run.'
   )
   const keywords = [
     'browser',
@@ -64,44 +64,42 @@ export function BrowserLinkRoutingSetting({
           }
         />
       </SearchableSetting>
-      {settings.openLinksInApp ? (
-        <SearchableSetting
-          title={openLinksTitle}
-          description={openLinksDescription}
-          keywords={keywords}
-        >
-          <SettingsRow
-            label={openLinksTitle}
-            description={openLinksDescription}
-            control={
-              <Select
-                value={settings.browserLinkRoutingHost ?? 'local'}
-                onValueChange={(value) =>
-                  updateSettings({ browserLinkRoutingHost: value as 'local' | 'workspace' })
-                }
-              >
-                <SelectTrigger size="sm" className="max-w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  <SelectItem value="local">
-                    {translate(
-                      'auto.components.settings.BrowserLinkRoutingSetting.965d31f368',
-                      'This computer'
-                    )}
-                  </SelectItem>
-                  <SelectItem value="workspace">
-                    {translate(
-                      'auto.components.settings.BrowserLinkRoutingSetting.50294199ff',
-                      'Workspace runtime'
-                    )}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            }
-          />
-        </SearchableSetting>
-      ) : null}
+      <SearchableSetting
+        title={browserTabHostTitle}
+        description={browserTabHostDescription}
+        keywords={keywords}
+      >
+        <SettingsRow
+          label={browserTabHostTitle}
+          description={browserTabHostDescription}
+          control={
+            <Select
+              value={settings.browserTabHost ?? 'local'}
+              onValueChange={(value) =>
+                updateSettings({ browserTabHost: value as 'local' | 'workspace' })
+              }
+            >
+              <SelectTrigger size="sm" className="max-w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="local">
+                  {translate(
+                    'auto.components.settings.BrowserLinkRoutingSetting.965d31f368',
+                    'This computer'
+                  )}
+                </SelectItem>
+                <SelectItem value="workspace">
+                  {translate(
+                    'auto.components.settings.BrowserLinkRoutingSetting.50294199ff',
+                    'Workspace runtime'
+                  )}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
+      </SearchableSetting>
     </div>
   )
 }

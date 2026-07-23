@@ -134,7 +134,7 @@ export type BrowserSlice = {
     url: string,
     options?: CreateBrowserTabOptions
   ) => BrowserWorkspace
-  openNewBrowserTabInActiveWorkspace: (groupId: string) => Promise<void>
+  openNewBrowserTabInActiveWorkspace: (groupId?: string) => Promise<void>
   closeBrowserTab: (tabId: string) => void
   shutdownWorktreeBrowsers: (worktreeId: string) => Promise<void>
   reopenClosedBrowserTab: (worktreeId: string) => BrowserWorkspace | null
@@ -689,7 +689,10 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
       return
     }
     const defaultUrl = state.browserDefaultUrl ?? 'about:blank'
-    const runtimeEnvironmentId = getRuntimeEnvironmentIdForWorktree(state, worktreeId)
+    const runtimeEnvironmentId =
+      state.settings?.browserTabHost === 'workspace'
+        ? getRuntimeEnvironmentIdForWorktree(state, worktreeId)
+        : null
     if (runtimeEnvironmentId) {
       const { createWebRuntimeSessionBrowserTab } = await import('@/runtime/web-runtime-session')
       try {
@@ -715,7 +718,8 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
     get().createBrowserTab(worktreeId, defaultUrl, {
       title: translate('auto.store.slices.browser.d175274b6d', 'New Browser Tab'),
       focusAddressBar: true,
-      targetGroupId: groupId
+      targetGroupId: groupId,
+      browserRuntimeEnvironmentId: null
     })
     get().recordFeatureInteraction('browser-tab-created')
   },

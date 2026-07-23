@@ -23,7 +23,7 @@ const storeState = {
         openLinksInApp?: boolean
         openLinksInAppModifierInverts?: boolean
         openLinksInAppPreferencePrompted?: boolean
-        browserLinkRoutingHost?: 'local' | 'workspace'
+        browserTabHost?: 'local' | 'workspace'
         activeRuntimeEnvironmentId?: string | null
         localhostWorktreeLabelsEnabled?: boolean
       }
@@ -142,7 +142,7 @@ describe('openHttpLink', () => {
   it('routes runtime links to the workspace host when selected', async () => {
     storeState.settings = {
       openLinksInApp: true,
-      browserLinkRoutingHost: 'workspace',
+      browserTabHost: 'workspace',
       localhostWorktreeLabelsEnabled: true
     }
 
@@ -166,7 +166,7 @@ describe('openHttpLink', () => {
   it('resolves the selected workspace host from the active runtime', async () => {
     storeState.settings = {
       openLinksInApp: true,
-      browserLinkRoutingHost: 'workspace',
+      browserTabHost: 'workspace',
       activeRuntimeEnvironmentId: 'env-active'
     }
 
@@ -186,7 +186,7 @@ describe('openHttpLink', () => {
     createWebRuntimeSessionBrowserTabMock.mockResolvedValue(false)
     storeState.settings = {
       openLinksInApp: true,
-      browserLinkRoutingHost: 'workspace',
+      browserTabHost: 'workspace',
       activeRuntimeEnvironmentId: 'env-active'
     }
 
@@ -198,7 +198,7 @@ describe('openHttpLink', () => {
   it('keeps SSH links on the system browser when the workspace host is selected', () => {
     storeState.settings = {
       openLinksInApp: true,
-      browserLinkRoutingHost: 'workspace',
+      browserTabHost: 'workspace',
       localhostWorktreeLabelsEnabled: true
     }
 

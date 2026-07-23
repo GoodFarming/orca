@@ -12,7 +12,7 @@ import {
 } from '@/runtime/web-runtime-session'
 import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
-import type { BrowserTab as BrowserTabState } from '../../../../shared/types'
+import type { BrowserTab as BrowserTabState, GlobalSettings } from '../../../../shared/types'
 import type { RuntimeFileListState } from '../quick-open-file-list'
 import {
   classifyTabEntryQuery,
@@ -85,6 +85,7 @@ type OpenTabEntryWithOperationsArgs = {
   runtimeContext: RuntimeFileOperationArgs
   activeRuntimeEnvironmentId: string | null
   allowAbsolutePaths: boolean
+  browserTabHost?: GlobalSettings['browserTabHost']
   localPlatform: TabEntryLocalPlatform
   classification?: TabEntryActionClassification
   operations: TabEntryOperations
@@ -155,6 +156,7 @@ async function openExistingFile(args: {
 export async function openTabEntryWithOperations({
   activeRuntimeEnvironmentId,
   allowAbsolutePaths,
+  browserTabHost,
   classification: selectedClassification,
   fileList,
   groupId,
@@ -173,7 +175,9 @@ export async function openTabEntryWithOperations({
   }
 
   if (classification.kind === 'explicit-url' || classification.kind === 'host-url') {
-    const runtimeSessionActive = operations.isWebRuntimeSessionActive(activeRuntimeEnvironmentId)
+    const runtimeSessionActive =
+      browserTabHost === 'workspace' &&
+      operations.isWebRuntimeSessionActive(activeRuntimeEnvironmentId)
     if (runtimeSessionActive) {
       const created = await operations.createWebRuntimeSessionBrowserTab({
         worktreeId,
@@ -195,6 +199,7 @@ export async function openTabEntryWithOperations({
     } else {
       operations.createBrowserTab(worktreeId, classification.url, {
         activate: true,
+        browserRuntimeEnvironmentId: null,
         targetGroupId: groupId,
         title: classification.url
       })
@@ -272,6 +277,7 @@ export async function openTabBarEntry(args: TabCreateEntryArgs): Promise<void> {
     runtimeContext,
     activeRuntimeEnvironmentId: runtimeContext.settings?.activeRuntimeEnvironmentId?.trim() ?? null,
     allowAbsolutePaths,
+    browserTabHost: state.settings?.browserTabHost,
     localPlatform,
     classification: args.classification,
     operations: {

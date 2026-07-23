@@ -936,11 +936,68 @@ describe('createBrowserSlice runtime guard', () => {
     )
   })
 
-  it('creates new browser tabs through the owning runtime for desktop remote worktrees', async () => {
+  it('creates new browser tabs locally by default for desktop remote worktrees', async () => {
     const store = createTestStore()
     store.setState({
       activeWorktreeId: 'wt-remote',
       settings: { activeRuntimeEnvironmentId: null } as AppState['settings'],
+      browserDefaultUrl: 'about:blank',
+      repos: [
+        {
+          id: 'repo-1',
+          path: '/repo',
+          displayName: 'Repo',
+          badgeColor: '#000000',
+          addedAt: 1,
+          connectionId: null,
+          executionHostId: 'runtime:env-1'
+        }
+      ],
+      worktreesByRepo: {
+        'repo-1': [
+          {
+            id: 'wt-remote',
+            repoId: 'repo-1',
+            path: '/repo/wt',
+            head: 'abc123',
+            branch: 'feature',
+            isBare: false,
+            isMainWorktree: false,
+            displayName: 'Workspace',
+            comment: '',
+            linkedIssue: null,
+            linkedPR: null,
+            linkedLinearIssue: null,
+            isArchived: false,
+            isUnread: false,
+            isPinned: false,
+            sortOrder: 0,
+            lastActivityAt: 1
+          }
+        ]
+      }
+    })
+
+    await store.getState().openNewBrowserTabInActiveWorkspace('group-1')
+
+    expect(createWebRuntimeSessionBrowserTabMock).not.toHaveBeenCalled()
+    expect(store.getState().browserTabsByWorktree['wt-remote']).toHaveLength(1)
+    const browserTab = store.getState().browserTabsByWorktree['wt-remote']?.[0]
+    const browserPage = browserTab
+      ? store.getState().browserPagesByWorkspace[browserTab.id]?.[0]
+      : null
+    expect(browserPage?.browserRuntimeEnvironmentId).toBeNull()
+    expect(store.getState().recordFeatureInteraction).toHaveBeenCalledWith('browser-tab-created')
+  })
+
+  it('creates new browser tabs through the owning runtime when the workspace host is selected', async () => {
+    const store = createTestStore()
+    store.setState({
+      activeWorktreeId: 'wt-remote',
+      settings: {
+        activeRuntimeEnvironmentId: null,
+        browserTabHost: 'workspace'
+      } as AppState['settings'],
       browserDefaultUrl: 'about:blank',
       repos: [
         {
@@ -991,7 +1048,7 @@ describe('createBrowserSlice runtime guard', () => {
     expect(store.getState().recordFeatureInteraction).toHaveBeenCalledWith('browser-tab-created')
   })
 
-  it('does not create a local fallback tab when remote browser creation fails', async () => {
+  it('does not create a local fallback tab when selected workspace browser creation fails', async () => {
     const store = createTestStore()
     // Why: a remote-owned workspace must stay remote-owned. If the remote host
     // cannot create the page, we must NOT silently open a local desktop tab —
@@ -999,7 +1056,10 @@ describe('createBrowserSlice runtime guard', () => {
     createWebRuntimeSessionBrowserTabMock.mockResolvedValueOnce(false)
     store.setState({
       activeWorktreeId: 'wt-remote',
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as AppState['settings'],
+      settings: {
+        activeRuntimeEnvironmentId: 'env-1',
+        browserTabHost: 'workspace'
+      } as AppState['settings'],
       worktreesByRepo: {
         'repo-1': [
           {
@@ -1028,12 +1088,15 @@ describe('createBrowserSlice runtime guard', () => {
     )
   })
 
-  it('does not create a local fallback tab when remote browser creation throws', async () => {
+  it('does not create a local fallback tab when selected workspace browser creation throws', async () => {
     const store = createTestStore()
     createWebRuntimeSessionBrowserTabMock.mockRejectedValueOnce(new Error('remote down'))
     store.setState({
       activeWorktreeId: 'wt-remote',
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as AppState['settings'],
+      settings: {
+        activeRuntimeEnvironmentId: 'env-1',
+        browserTabHost: 'workspace'
+      } as AppState['settings'],
       worktreesByRepo: {
         'repo-1': [
           {

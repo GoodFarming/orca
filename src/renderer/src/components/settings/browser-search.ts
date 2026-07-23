@@ -88,7 +88,10 @@ export function getBrowserPaneSearchEntries(
       ]
     },
     {
-      title: translate('auto.components.settings.browser.search.5cb082b3e3', 'Link Routing'),
+      title: translate(
+        'auto.components.settings.browser.search.5cb082b3e3',
+        'Link Routing & Browser Tab Host'
+      ),
       description: getBrowserLinkRoutingDescription(platform),
       keywords: [
         ...translateSearchKeyword('auto.components.settings.browser.search.2d2d995c58', 'browser'),

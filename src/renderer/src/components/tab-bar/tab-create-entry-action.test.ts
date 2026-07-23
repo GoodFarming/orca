@@ -191,6 +191,7 @@ describe('openTabEntryWithOperations', () => {
       ...baseArgs,
       query: 'https://example.com',
       activeRuntimeEnvironmentId: 'runtime-1',
+      browserTabHost: 'workspace',
       operations
     })
 
@@ -213,6 +214,7 @@ describe('openTabEntryWithOperations', () => {
       ...baseArgs,
       query: 'https://example.com',
       activeRuntimeEnvironmentId: 'runtime-1',
+      browserTabHost: 'workspace',
       operations
     })
 
@@ -362,5 +364,26 @@ describe('openTabEntryWithOperations', () => {
 
     expect(operations.statRuntimePath).not.toHaveBeenCalled()
     expect(operations.openFile).not.toHaveBeenCalled()
+  })
+
+  it('creates typed URLs locally by default while a paired runtime is active', async () => {
+    const operations = makeOperations({
+      isWebRuntimeSessionActive: vi.fn().mockReturnValue(true)
+    })
+
+    await openTabEntryWithOperations({
+      ...baseArgs,
+      query: 'https://example.com',
+      activeRuntimeEnvironmentId: 'runtime-1',
+      operations
+    })
+
+    expect(operations.createWebRuntimeSessionBrowserTab).not.toHaveBeenCalled()
+    expect(operations.createBrowserTab).toHaveBeenCalledWith('wt-1', 'https://example.com/', {
+      activate: true,
+      browserRuntimeEnvironmentId: null,
+      targetGroupId: 'group-1',
+      title: 'https://example.com/'
+    })
   })
 })

@@ -26,7 +26,10 @@ const pairedWebFlag = globalThis as { __ORCA_WEB_CLIENT__?: boolean }
 function seedActiveWorkspace(store: ReturnType<typeof createTestStore>): void {
   seedStore(store, {
     activeWorktreeId: 'wt-1',
-    settings: { activeRuntimeEnvironmentId: 'runtime-1' } as AppState['settings'],
+    settings: {
+      activeRuntimeEnvironmentId: 'runtime-1',
+      browserTabHost: 'workspace'
+    } as AppState['settings'],
     worktreesByRepo: {
       [TEST_REPO.id]: [
         makeWorktree({
@@ -91,7 +94,10 @@ describe('Cmd+J lifted creation actions', () => {
           })
         ]
       },
-      settings: { activeRuntimeEnvironmentId: 'focused-runtime' } as AppState['settings']
+      settings: {
+        activeRuntimeEnvironmentId: 'focused-runtime',
+        browserTabHost: 'workspace'
+      } as AppState['settings']
     })
 
     await store.getState().openNewBrowserTabInActiveWorkspace('group-1')
