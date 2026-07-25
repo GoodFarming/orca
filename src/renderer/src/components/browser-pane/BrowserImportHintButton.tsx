@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAppStore } from '@/store'
+import type { AppState } from '@/store/types'
 import { isLinuxUserAgent, isMacUserAgent } from '@/components/terminal-pane/pane-helpers'
 import { getBrowserCookieImportSourceLabels } from '../../../../shared/browser-cookie-import-sources'
 import { shouldShowBrowserImportHint } from './browser-import-hint-visibility'
@@ -27,16 +28,24 @@ type BrowserImportHintButtonProps = {
   profileId: string | null
 }
 
+const EMPTY_DETECTED_BROWSERS: AppState['detectedBrowsers'] = []
+
 export function BrowserImportHintButton({
   profileId
 }: BrowserImportHintButtonProps): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
   const [importMenuOpen, setImportMenuOpen] = useState(false)
-  const browserSessionImportState = useAppStore((s) => s.browserSessionImportState)
+  const browserSessionImportState = useAppStore(
+    (s) => s.browserSessionImportStateByHostId[LOCAL_EXECUTION_HOST_ID] ?? null
+  )
   const browserImportHintHidden = useAppStore((s) => s.browserImportHintHidden)
   const persistedUIReady = useAppStore((s) => s.persistedUIReady)
-  const detectedBrowsers = useAppStore((s) => s.detectedBrowsers)
-  const detectedBrowsersLoaded = useAppStore((s) => s.detectedBrowsersLoaded)
+  const detectedBrowsers = useAppStore(
+    (s) => s.detectedBrowsersByHostId[LOCAL_EXECUTION_HOST_ID] ?? EMPTY_DETECTED_BROWSERS
+  )
+  const detectedBrowsersLoaded = useAppStore(
+    (s) => s.detectedBrowsersLoadedByHostId[LOCAL_EXECUTION_HOST_ID] === true
+  )
   const fetchDetectedBrowsers = useAppStore((s) => s.fetchDetectedBrowsers)
   const importCookiesFromBrowser = useAppStore((s) => s.importCookiesFromBrowser)
   const importCookiesToProfile = useAppStore((s) => s.importCookiesToProfile)

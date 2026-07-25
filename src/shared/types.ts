@@ -2865,7 +2865,7 @@ export type GlobalSettings = {
   electronHttp1CompatibilityMode?: boolean
   /** Opt-in in-app browsing (isolated guest surface); default keeps links opening in the system browser. */
   openLinksInApp: boolean
-  /** Where new Orca Browser tabs and routed links run. Missing values resolve to the client. */
+  /** Missing values preserve legacy client-local browser ownership. */
   browserTabHost?: 'local' | 'workspace'
   /** Worktree-scoped localhost hostnames to distinguish tabs; opt-in since a non-localhost host can break apps binding cookies/sessions to localhost. */
   localhostWorktreeLabelsEnabled?: boolean

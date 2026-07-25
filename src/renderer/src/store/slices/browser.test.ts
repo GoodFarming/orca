@@ -252,6 +252,28 @@ describe('createBrowserSlice annotations', () => {
     expect(store.getState().activeBrowserTabIdByWorktree['wt-1']).toBeNull()
   })
 
+  it('restores browser activation when a paired-host snapshot lands during creation', () => {
+    const store = createTestStore()
+    store.setState({
+      createUnifiedTab: vi.fn(() => {
+        store.setState((state) => ({
+          activeBrowserTabId: null,
+          activeBrowserTabIdByWorktree: { ...state.activeBrowserTabIdByWorktree, 'wt-1': null },
+          activeTabType: 'terminal',
+          activeTabTypeByWorktree: { ...state.activeTabTypeByWorktree, 'wt-1': 'terminal' }
+        }))
+        return null as never
+      })
+    })
+
+    const tab = store.getState().createBrowserTab('wt-1', 'https://example.com')
+
+    expect(store.getState().activeBrowserTabId).toBe(tab.id)
+    expect(store.getState().activeBrowserTabIdByWorktree['wt-1']).toBe(tab.id)
+    expect(store.getState().activeTabType).toBe('browser')
+    expect(store.getState().activeTabTypeByWorktree['wt-1']).toBe('browser')
+  })
+
   it('uses local browser profile defaults for client-local fallback pages', () => {
     const store = createTestStore()
     store.setState({
@@ -656,6 +678,45 @@ describe('createBrowserSlice runtime guard', () => {
     )
     expect(store.getState().browserSessionProfilesByHostId.local?.[0]?.id).toBe('local-default')
     expect(store.getState().browserSessionProfiles[0]?.id).toBe('local-default')
+  })
+
+  it('does not expose an explicit remote profile response as the local fallback list', async () => {
+    const store = createTestStore()
+    const localProfile = {
+      id: 'local-default',
+      scope: 'default' as const,
+      partition: 'persist:orca-local',
+      label: 'Local Default',
+      source: null
+    }
+    runtimeEnvironmentCall.mockResolvedValueOnce({
+      id: 'rpc-remote',
+      ok: true,
+      result: {
+        profiles: [
+          {
+            id: 'remote-default',
+            scope: 'default',
+            partition: 'persist:orca-remote',
+            label: 'Remote Default',
+            source: null
+          }
+        ]
+      },
+      _meta: { runtimeId: 'runtime-remote' }
+    })
+    store.setState({
+      settings: { activeRuntimeEnvironmentId: null } as AppState['settings'],
+      browserSessionProfiles: [localProfile],
+      browserSessionProfilesByHostId: {}
+    })
+
+    await store.getState().fetchBrowserSessionProfiles('runtime:env-1')
+
+    expect(store.getState().browserSessionProfiles).toEqual([localProfile])
+    expect(store.getState().browserSessionProfilesByHostId['runtime:env-1']?.[0]?.id).toBe(
+      'remote-default'
+    )
   })
 
   it('routes browser settings per client without changing the durable Active Server', async () => {
@@ -1169,6 +1230,86 @@ describe('createBrowserSlice runtime guard', () => {
       expect.objectContaining({ method: 'browser.profileImportFromBrowser' })
     )
     expect(result.ok).toBe(true)
+    expect(store.getState().browserSessionImportState).toBeNull()
+    expect(store.getState().browserSessionImportStateByHostId.local).toMatchObject({
+      profileId: 'default',
+      status: 'success'
+    })
+  })
+
+  it('creates a profile on an explicit local host without replacing remote settings state', async () => {
+    const store = createTestStore()
+    const remoteProfile = {
+      id: 'remote-default',
+      scope: 'default' as const,
+      partition: 'persist:orca-remote',
+      label: 'Remote Default',
+      source: null
+    }
+    const localProfile = {
+      id: 'local-isolated',
+      scope: 'isolated' as const,
+      partition: 'persist:orca-local-isolated',
+      label: 'Local Isolated',
+      source: null
+    }
+    store.setState({
+      settings: settingsWithRuntime('env-1'),
+      browserSessionProfiles: [remoteProfile],
+      browserSessionProfilesByHostId: { 'runtime:env-1': [remoteProfile] }
+    })
+    mockApi.browser.sessionCreateProfile.mockResolvedValueOnce(localProfile)
+
+    const created = await store
+      .getState()
+      .createBrowserSessionProfile('isolated', 'Local Isolated', 'local')
+
+    expect(created).toEqual(localProfile)
+    expect(mockApi.browser.sessionCreateProfile).toHaveBeenCalledWith({
+      scope: 'isolated',
+      label: 'Local Isolated'
+    })
+    expect(runtimeEnvironmentCall).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'browser.profileCreate' })
+    )
+    expect(store.getState().browserSessionProfiles).toEqual([remoteProfile])
+    expect(store.getState().browserSessionProfilesByHostId.local).toEqual([localProfile])
+  })
+
+  it('caches explicitly detected local browsers without replacing the selected remote host', async () => {
+    const store = createTestStore()
+    const remoteBrowsers = [
+      {
+        family: 'edge',
+        label: 'Remote Edge',
+        profiles: [{ name: 'Default', directory: 'Default' }],
+        selectedProfile: 'Default'
+      }
+    ]
+    const localBrowsers = [
+      {
+        family: 'chrome',
+        label: 'Local Chrome',
+        profiles: [{ name: 'Profile 1', directory: 'Profile 1' }],
+        selectedProfile: 'Profile 1'
+      }
+    ]
+    store.setState({
+      browserSessionHostIdOverride: 'runtime:env-1',
+      detectedBrowsers: remoteBrowsers,
+      detectedBrowsersLoaded: true,
+      detectedBrowsersByHostId: { 'runtime:env-1': remoteBrowsers },
+      detectedBrowsersLoadedByHostId: { 'runtime:env-1': true }
+    })
+    mockApi.browser.sessionDetectBrowsers.mockResolvedValue(localBrowsers)
+
+    await store.getState().fetchDetectedBrowsers('local')
+    await store.getState().fetchDetectedBrowsers('local')
+
+    expect(mockApi.browser.sessionDetectBrowsers).toHaveBeenCalledTimes(1)
+    expect(store.getState().detectedBrowsers).toEqual(remoteBrowsers)
+    expect(store.getState().detectedBrowsersByHostId.local).toEqual(localBrowsers)
+    expect(store.getState().detectedBrowsersLoadedByHostId.local).toBe(true)
   })
 
   it('allows explicit local cookie files while a runtime is active', async () => {

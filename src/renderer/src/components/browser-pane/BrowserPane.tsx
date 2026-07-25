@@ -59,6 +59,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { useAppStore } from '@/store'
+import type { AppState } from '@/store/types'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { ORCA_BROWSER_BLANK_URL, ORCA_BROWSER_PARTITION } from '../../../../shared/constants'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
@@ -202,6 +203,8 @@ import {
   resolveBrowserReloadButtonLabelKind,
   resolveBrowserReloadIntent
 } from './browser-reload-action'
+
+const EMPTY_BROWSER_SESSION_PROFILES: AppState['browserSessionProfiles'] = []
 
 type BrowserTabPageState = Partial<
   Pick<
@@ -3064,7 +3067,8 @@ function BrowserPagePane({
   const createBrowserTab = useAppStore((s) => s.createBrowserTab)
   const consumeAddressBarFocusRequest = useAppStore((s) => s.consumeAddressBarFocusRequest)
   const browserSessionProfiles = useAppStore(
-    (s) => s.browserSessionProfilesByHostId[LOCAL_EXECUTION_HOST_ID] ?? s.browserSessionProfiles
+    (s) =>
+      s.browserSessionProfilesByHostId[LOCAL_EXECUTION_HOST_ID] ?? EMPTY_BROWSER_SESSION_PROFILES
   )
   const activeOrcaProfileId = useAppStore((s) => s.activeOrcaProfileId)
   const fallbackBrowserPartition = activeOrcaProfileId
@@ -3080,7 +3084,9 @@ function BrowserPagePane({
     defaultSessionProfile?.partition ??
     fallbackBrowserPartition ??
     ORCA_BROWSER_PARTITION
-  const browserSessionImportState = useAppStore((s) => s.browserSessionImportState)
+  const browserSessionImportState = useAppStore(
+    (s) => s.browserSessionImportStateByHostId[LOCAL_EXECUTION_HOST_ID] ?? null
+  )
   const clearBrowserSessionImportState = useAppStore((s) => s.clearBrowserSessionImportState)
   const showBrowserZoomFeedback = useCallback((level: number): void => {
     setBrowserZoomPercent(browserPageZoomLevelToPercent(level))
@@ -3102,10 +3108,10 @@ function BrowserPagePane({
       setResourceNotice(
         `Imported ${importedCookies} cookies for ${domainPreview}${more}. Reload the page to use them.`
       )
-      clearBrowserSessionImportState()
+      clearBrowserSessionImportState(LOCAL_EXECUTION_HOST_ID)
     } else if (browserSessionImportState.status === 'error' && browserSessionImportState.error) {
       setResourceNotice(`Cookie import failed: ${browserSessionImportState.error}`)
-      clearBrowserSessionImportState()
+      clearBrowserSessionImportState(LOCAL_EXECUTION_HOST_ID)
     }
   }, [browserSessionImportState, clearBrowserSessionImportState])
 

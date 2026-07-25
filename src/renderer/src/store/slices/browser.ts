@@ -58,6 +58,7 @@ import {
   addAdditionalValidWorkspaceKeys,
   type WorkspaceSessionHydrationOptions
 } from '@/lib/workspace-session-hydration-keys'
+import { resolveBrowserTabHost } from '@/lib/browser-tab-host'
 import { buildValidWorktreeIdsForSessionHydration } from './degraded-repo-worktree-validity'
 
 type CreateBrowserTabOptions = {
@@ -90,6 +91,13 @@ type BrowserTabPageState = {
 type SetBrowserPageUrlOptions = {
   preserveLoadError?: boolean
 }
+
+type BrowserSessionImportState = {
+  profileId: string
+  status: 'idle' | 'importing' | 'success' | 'error'
+  summary: BrowserCookieImportSummary | null
+  error: string | null
+} | null
 
 type ClosedBrowserWorkspaceSnapshot = {
   workspace: BrowserWorkspace
@@ -187,12 +195,8 @@ export type BrowserSlice = {
   browserSessionProfilesByHostId: Partial<Record<ExecutionHostId, BrowserSessionProfile[]>>
   browserSessionHostIdOverride: ExecutionHostId | null
   setBrowserSessionHostId: (hostId: ExecutionHostId) => Promise<void>
-  browserSessionImportState: {
-    profileId: string
-    status: 'idle' | 'importing' | 'success' | 'error'
-    summary: BrowserCookieImportSummary | null
-    error: string | null
-  } | null
+  browserSessionImportState: BrowserSessionImportState
+  browserSessionImportStateByHostId: Partial<Record<ExecutionHostId, BrowserSessionImportState>>
   fetchBrowserSessionProfiles: (hostId?: ExecutionHostId) => Promise<void>
   createBrowserSessionProfile: (
     scope: 'isolated' | 'imported',
@@ -204,9 +208,11 @@ export type BrowserSlice = {
     profileId: string,
     hostId?: ExecutionHostId
   ) => Promise<BrowserCookieImportResult>
-  clearBrowserSessionImportState: () => void
+  clearBrowserSessionImportState: (hostId?: ExecutionHostId) => void
   detectedBrowsers: DetectedBrowserProfileSource[]
   detectedBrowsersLoaded: boolean
+  detectedBrowsersByHostId: Partial<Record<ExecutionHostId, DetectedBrowserProfileSource[]>>
+  detectedBrowsersLoadedByHostId: Partial<Record<ExecutionHostId, true>>
   fetchDetectedBrowsers: (hostId?: ExecutionHostId) => Promise<void>
   importCookiesFromBrowser: (
     profileId: string,
@@ -323,6 +329,32 @@ function profileListByHostUpdate(
   }
 }
 
+function detectedBrowserListByHostUpdate(
+  state: Pick<
+    AppState,
+    | 'browserSessionHostIdOverride'
+    | 'detectedBrowsersByHostId'
+    | 'detectedBrowsersLoadedByHostId'
+    | 'settings'
+  >,
+  hostId: ExecutionHostId,
+  browsers: DetectedBrowserProfileSource[]
+): Partial<BrowserSlice> {
+  return {
+    ...(getBrowserSettingsHostId(state) === hostId
+      ? { detectedBrowsers: browsers, detectedBrowsersLoaded: true }
+      : {}),
+    detectedBrowsersByHostId: {
+      ...state.detectedBrowsersByHostId,
+      [hostId]: browsers
+    },
+    detectedBrowsersLoadedByHostId: {
+      ...state.detectedBrowsersLoadedByHostId,
+      [hostId]: true
+    }
+  }
+}
+
 function getBrowserProfilesForHost(
   state: AppState,
   hostId: ExecutionHostId
@@ -343,9 +375,15 @@ function getDefaultBrowserProfileForHost(state: AppState, hostId: ExecutionHostI
 function browserImportStateForHostUpdate(
   state: AppState,
   hostId: ExecutionHostId,
-  browserSessionImportState: BrowserSlice['browserSessionImportState']
+  browserSessionImportState: BrowserSessionImportState
 ): Partial<BrowserSlice> {
-  return getBrowserSettingsHostId(state) === hostId ? { browserSessionImportState } : {}
+  return {
+    ...(getBrowserSettingsHostId(state) === hostId ? { browserSessionImportState } : {}),
+    browserSessionImportStateByHostId: {
+      ...state.browserSessionImportStateByHostId,
+      [hostId]: browserSessionImportState
+    }
+  }
 }
 
 function closeRemoteBrowserPageInOwningEnvironment(
@@ -541,9 +579,12 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
   browserSessionProfilesByHostId: {},
   browserSessionHostIdOverride: null,
   browserSessionImportState: null,
+  browserSessionImportStateByHostId: {},
   browserUrlHistory: [],
   defaultBrowserSessionProfileId: null,
   defaultBrowserSessionProfileIdByHostId: {},
+  detectedBrowsersByHostId: {},
+  detectedBrowsersLoadedByHostId: {},
 
   setBrowserSessionHostId: async (hostId) => {
     const parsed = parseExecutionHostId(hostId)
@@ -555,9 +596,9 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
       browserSessionHostIdOverride: nextHostId,
       browserSessionProfiles: s.browserSessionProfilesByHostId[nextHostId] ?? [],
       defaultBrowserSessionProfileId: s.defaultBrowserSessionProfileIdByHostId[nextHostId] ?? null,
-      browserSessionImportState: null,
-      detectedBrowsers: [],
-      detectedBrowsersLoaded: false
+      browserSessionImportState: s.browserSessionImportStateByHostId[nextHostId] ?? null,
+      detectedBrowsers: s.detectedBrowsersByHostId[nextHostId] ?? [],
+      detectedBrowsersLoaded: s.detectedBrowsersLoadedByHostId[nextHostId] === true
     }))
     await Promise.all([get().fetchBrowserSessionProfiles(), get().fetchDetectedBrowsers()])
   },
@@ -679,6 +720,10 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
         activate: options?.activate ?? true
       })
     }
+    if (options?.activate ?? true) {
+      // Why: paired-host snapshots can land between the browser and unified-tab writes; reassert after both exist.
+      get().focusBrowserTabInWorktree(worktreeId, page.id, { surfacePane: true })
+    }
     return browserTab
   },
 
@@ -690,7 +735,7 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
     }
     const defaultUrl = state.browserDefaultUrl ?? 'about:blank'
     const runtimeEnvironmentId =
-      state.settings?.browserTabHost === 'workspace'
+      resolveBrowserTabHost(state.settings?.browserTabHost) === 'workspace'
         ? getRuntimeEnvironmentIdForWorktree(state, worktreeId)
         : null
     if (runtimeEnvironmentId) {
@@ -1866,7 +1911,7 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
     if (runtimeEnvironmentId) {
       try {
         const result = await callRuntimeRpc<BrowserProfileCreateResult>(
-          { kind: 'environment', environmentId: runtimeEnvironmentId },
+          runtimeTarget,
           'browser.profileCreate',
           { scope, label, ...options },
           { timeoutMs: 15_000 }
@@ -1876,8 +1921,8 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
           set((s) => ({
             ...profileListByHostUpdate(
               s,
-              [...getBrowserProfilesForHost(s, hostId), profile],
-              hostId
+              [...getBrowserProfilesForHost(s, requestedHostId), profile],
+              requestedHostId
             )
           }))
         }
@@ -1894,7 +1939,11 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
       })) as BrowserSessionProfile | null
       if (profile) {
         set((s) => ({
-          ...profileListByHostUpdate(s, [...getBrowserProfilesForHost(s, hostId), profile], hostId)
+          ...profileListByHostUpdate(
+            s,
+            [...getBrowserProfilesForHost(s, requestedHostId), profile],
+            requestedHostId
+          )
         }))
       }
       return profile
@@ -2006,9 +2055,11 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
             error: null
           })
         )
-        await get()
-          .fetchBrowserSessionProfiles(requestedHostId)
-          .catch(() => {})
+        if (getBrowserSettingsHostId(get()) === requestedHostId) {
+          await get()
+            .fetchBrowserSessionProfiles(requestedHostId)
+            .catch(() => {})
+        }
       } else {
         set((state) =>
           browserImportStateForHostUpdate(state, requestedHostId, {
@@ -2034,8 +2085,9 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
     }
   },
 
-  clearBrowserSessionImportState: () => {
-    set({ browserSessionImportState: null })
+  clearBrowserSessionImportState: (hostId) => {
+    const requestedHostId = getRequestedBrowserHostId(get(), hostId)
+    set((state) => browserImportStateForHostUpdate(state, requestedHostId, null))
   },
 
   detectedBrowsers: [],
@@ -2043,6 +2095,9 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
 
   fetchDetectedBrowsers: async (hostId) => {
     const requestedHostId = getRequestedBrowserHostId(get(), hostId)
+    if (get().detectedBrowsersLoadedByHostId[requestedHostId]) {
+      return
+    }
     const runtimeTarget = getBrowserRuntimeTarget(requestedHostId)
     if (runtimeTarget) {
       try {
@@ -2052,36 +2107,19 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
           undefined,
           { timeoutMs: 15_000 }
         )
-        set((s) =>
-          getBrowserSettingsHostId(s) === requestedHostId
-            ? { detectedBrowsers: result.browsers, detectedBrowsersLoaded: true }
-            : {}
-        )
+        set((s) => detectedBrowserListByHostUpdate(s, requestedHostId, result.browsers))
       } catch {
-        set((s) =>
-          getBrowserSettingsHostId(s) === requestedHostId
-            ? { detectedBrowsers: [], detectedBrowsersLoaded: true }
-            : {}
-        )
+        set((s) => detectedBrowserListByHostUpdate(s, requestedHostId, []))
       }
-      return
-    }
-    if (hostId === undefined && get().detectedBrowsersLoaded) {
       return
     }
     try {
       const browsers =
         (await window.api.browser.sessionDetectBrowsers()) as DetectedBrowserProfileSource[]
-      set((s) =>
-        getBrowserSettingsHostId(s) === requestedHostId
-          ? { detectedBrowsers: browsers, detectedBrowsersLoaded: true }
-          : {}
-      )
+      set((s) => detectedBrowserListByHostUpdate(s, requestedHostId, browsers))
     } catch {
       /* best-effort — empty list is acceptable fallback */
-      set((s) =>
-        getBrowserSettingsHostId(s) === requestedHostId ? { detectedBrowsersLoaded: true } : {}
-      )
+      set((s) => detectedBrowserListByHostUpdate(s, requestedHostId, []))
     }
   },
 
@@ -2113,9 +2151,11 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
               error: null
             })
           )
-          await get()
-            .fetchBrowserSessionProfiles(requestedHostId)
-            .catch(() => {})
+          if (getBrowserSettingsHostId(get()) === requestedHostId) {
+            await get()
+              .fetchBrowserSessionProfiles(requestedHostId)
+              .catch(() => {})
+          }
         } else {
           set((state) =>
             browserImportStateForHostUpdate(state, requestedHostId, {
@@ -2164,9 +2204,11 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
             error: null
           })
         )
-        await get()
-          .fetchBrowserSessionProfiles(requestedHostId)
-          .catch(() => {})
+        if (getBrowserSettingsHostId(get()) === requestedHostId) {
+          await get()
+            .fetchBrowserSessionProfiles(requestedHostId)
+            .catch(() => {})
+        }
       } else {
         set((state) =>
           browserImportStateForHostUpdate(state, requestedHostId, {

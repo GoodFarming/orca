@@ -97,6 +97,14 @@ export function getBrowserPaneSearchEntries(
         ...translateSearchKeyword('auto.components.settings.browser.search.2d2d995c58', 'browser'),
         ...translateSearchKeyword('auto.components.settings.browser.search.44d14df30d', 'preview'),
         ...translateSearchKeyword('auto.components.settings.browser.search.bea27bac4b', 'links'),
+        ...translateSearchKeyword('auto.components.settings.ssh.search.8fb1cc87cc', 'host'),
+        ...translateSearchKeyword('auto.components.settings.repository.search.0432d2fb7c', 'local'),
+        ...translateSearchKeyword('auto.components.settings.ssh.search.d4bcd497c7', 'remote'),
+        ...translateSearchKeyword('auto.components.settings.general.search.runtime', 'runtime'),
+        ...translateSearchKeyword(
+          'auto.components.settings.general.search.7baf524b04',
+          'workspace'
+        ),
         ...translateSearchKeyword(
           'auto.components.settings.browser.search.82ba1c80ea',
           'localhost'

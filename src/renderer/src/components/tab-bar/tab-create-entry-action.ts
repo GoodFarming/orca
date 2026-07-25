@@ -20,6 +20,7 @@ import {
   type TabEntryActionClassification,
   type TabEntryOptionsContext
 } from './tab-create-entry-classifier'
+import { resolveBrowserTabHost } from '@/lib/browser-tab-host'
 import { openAbsoluteTabEntryFile } from './tab-create-entry-absolute-file'
 import {
   getTabEntryAllowAbsolutePaths,
@@ -190,20 +191,13 @@ export async function openTabEntryWithOperations({
       }
       // Why: headless remote runtimes cannot host browser panes yet; a URL open
       // should still give the user a usable client-local browser tab.
-      operations.createBrowserTab(worktreeId, classification.url, {
-        activate: true,
-        browserRuntimeEnvironmentId: null,
-        targetGroupId: groupId,
-        title: classification.url
-      })
-    } else {
-      operations.createBrowserTab(worktreeId, classification.url, {
-        activate: true,
-        browserRuntimeEnvironmentId: null,
-        targetGroupId: groupId,
-        title: classification.url
-      })
     }
+    operations.createBrowserTab(worktreeId, classification.url, {
+      activate: true,
+      browserRuntimeEnvironmentId: null,
+      targetGroupId: groupId,
+      title: classification.url
+    })
     return
   }
 
@@ -277,7 +271,7 @@ export async function openTabBarEntry(args: TabCreateEntryArgs): Promise<void> {
     runtimeContext,
     activeRuntimeEnvironmentId: runtimeContext.settings?.activeRuntimeEnvironmentId?.trim() ?? null,
     allowAbsolutePaths,
-    browserTabHost: state.settings?.browserTabHost,
+    browserTabHost: resolveBrowserTabHost(state.settings?.browserTabHost),
     localPlatform,
     classification: args.classification,
     operations: {

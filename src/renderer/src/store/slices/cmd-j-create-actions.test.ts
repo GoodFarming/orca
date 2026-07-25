@@ -78,6 +78,28 @@ describe('Cmd+J lifted creation actions', () => {
     expect(store.getState().browserTabsByWorktree['wt-1'] ?? []).toEqual([])
   })
 
+  it('keeps paired-web browser creation runtime-owned when the desktop preference is local', async () => {
+    createWebRuntimeSessionBrowserTabMock.mockResolvedValue(true)
+    const store = createTestStore()
+    seedActiveWorkspace(store)
+    store.setState({
+      settings: {
+        activeRuntimeEnvironmentId: 'runtime-1',
+        browserTabHost: 'local'
+      } as AppState['settings']
+    })
+
+    await store.getState().openNewBrowserTabInActiveWorkspace('group-1')
+
+    expect(createWebRuntimeSessionBrowserTabMock).toHaveBeenCalledWith({
+      worktreeId: 'wt-1',
+      environmentId: 'runtime-1',
+      url: 'about:blank',
+      targetGroupId: 'group-1'
+    })
+    expect(store.getState().browserTabsByWorktree['wt-1'] ?? []).toEqual([])
+  })
+
   it('routes browser tab creation to the explicit owner runtime when another runtime is focused', async () => {
     createWebRuntimeSessionBrowserTabMock.mockResolvedValue(false)
     const store = createTestStore()

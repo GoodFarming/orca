@@ -10,6 +10,7 @@ import {
   getExecutionHostIdForWorktree,
   type WorktreeRuntimeOwnerState
 } from './worktree-runtime-owner'
+import { resolveBrowserTabHost } from './browser-tab-host'
 
 export type OpenHttpLinkOptions = {
   worktreeId?: string | null
@@ -171,7 +172,7 @@ function resolveBrowserLinkOwner(
   worktreeId: string,
   sourceOwner?: HttpLinkSourceOwner
 ): HttpLinkSourceOwner {
-  if (state.settings?.browserTabHost !== 'workspace') {
+  if (resolveBrowserTabHost(state.settings?.browserTabHost) !== 'workspace') {
     return { kind: 'local' }
   }
   if (sourceOwner) {
@@ -205,7 +206,7 @@ async function openRuntimeBrowserLink(
       return
     }
   } catch {
-    // Fall through to the established system-browser escape hatch.
+    // Why: runtime capability can disappear mid-open; preserve the system-browser escape hatch.
   }
   if (typeof window !== 'undefined') {
     void window.api.shell.openUrl(url)

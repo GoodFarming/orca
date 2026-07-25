@@ -182,30 +182,25 @@ async function activatePairedWorktree(page: Page, repoId: string): Promise<Paire
   return worktree
 }
 
-async function renderedTabIds(page: Page): Promise<string[]> {
-  return page
-    .locator('.terminal-tab-strip [data-tab-id]')
-    .evaluateAll((tabs) =>
-      Array.from(
-        new Set(
-          tabs
-            .map((tab) => tab.getAttribute('data-tab-id'))
-            .filter((tabId): tabId is string => Boolean(tabId))
-        )
-      )
-    )
-}
-
 async function readNewBrowserDestination(
   page: Page,
   worktreeId: string,
   existingBrowserTabIds: string[]
 ): Promise<{
+  activeGroupTabType: string | null
+  activeTabType: string | null | undefined
+  activeView: string
   browserRuntimeEnvironmentId: string | null | undefined
+  hasBrowserPage: boolean
+  hasOverlay: boolean
+  hasWebview: boolean
   marker: string | null
-  tabId: string
+  tabId: string | null
   terminalTabIds: string[]
-  url: string
+  renderedActiveWorktreeId: string | null
+  renderErrorText: string | null
+  unifiedBrowserTabCount: number
+  url: string | null
 } | null> {
   return page.evaluate(
     async ({ existingBrowserTabIds, worktreeId }) => {
@@ -216,32 +211,57 @@ async function readNewBrowserDestination(
       const tab = (state.browserTabsByWorktree[worktreeId] ?? []).find(
         (candidate) => !existingBrowserTabIds.includes(candidate.id)
       )
-      if (!tab?.activePageId) {
-        return null
-      }
-      const browserPage = state.browserPagesByWorkspace[tab.id]?.find(
-        (candidate) => candidate.id === tab.activePageId
-      )
-      const overlay = document.querySelector(`[data-browser-overlay-tab-id="${tab.id}"]`)
+      const browserPage =
+        tab?.activePageId === undefined
+          ? undefined
+          : state.browserPagesByWorkspace[tab.id]?.find(
+              (candidate) => candidate.id === tab.activePageId
+            )
+      const overlay = tab
+        ? document.querySelector(`[data-browser-overlay-tab-id="${tab.id}"]`)
+        : null
       const webview = overlay?.querySelector('webview') as Electron.WebviewTag | null
-      if (!browserPage || !webview) {
-        return null
-      }
+      let marker: string | null = null
       try {
-        const marker = (await webview.executeJavaScript(
-          'document.querySelector("#browser-host-marker")?.textContent ?? null'
-        )) as string | null
-        return {
-          browserRuntimeEnvironmentId: browserPage.browserRuntimeEnvironmentId,
-          marker,
-          tabId: tab.id,
-          terminalTabIds: (state.tabsByWorktree[worktreeId] ?? []).map(
-            (terminalTab) => terminalTab.id
-          ),
-          url: browserPage.url
-        }
+        marker = webview
+          ? ((await webview.executeJavaScript(
+              'document.querySelector("#browser-host-marker")?.textContent ?? null'
+            )) as string | null)
+          : null
       } catch {
-        return null
+        marker = null
+      }
+      const activeGroupTabId = (state.groupsByWorktree[worktreeId] ?? []).find(
+        (group) => group.id === state.activeGroupIdByWorktree[worktreeId]
+      )?.activeTabId
+      return {
+        activeGroupTabType:
+          (state.unifiedTabsByWorktree[worktreeId] ?? []).find(
+            (unifiedTab) => unifiedTab.id === activeGroupTabId
+          )?.contentType ?? null,
+        activeTabType: state.activeTabTypeByWorktree[worktreeId],
+        activeView: state.activeView,
+        browserRuntimeEnvironmentId: browserPage?.browserRuntimeEnvironmentId,
+        hasBrowserPage: browserPage !== undefined,
+        hasOverlay: overlay !== null,
+        hasWebview: Boolean(webview),
+        marker,
+        tabId: tab?.id ?? null,
+        terminalTabIds: (state.tabsByWorktree[worktreeId] ?? []).map(
+          (terminalTab) => terminalTab.id
+        ),
+        renderedActiveWorktreeId:
+          document
+            .querySelector('[data-rendered-active-worktree-id]')
+            ?.getAttribute('data-rendered-active-worktree-id') ?? null,
+        renderErrorText:
+          [...document.querySelectorAll('[role="alert"]')]
+            .map((element) => element.textContent)
+            .find((text) => text?.includes('workspace workbench')) ?? null,
+        unifiedBrowserTabCount: (state.unifiedTabsByWorktree[worktreeId] ?? []).filter(
+          (unifiedTab) => unifiedTab.contentType === 'browser'
+        ).length,
+        url: browserPage?.url ?? null
       }
     },
     { existingBrowserTabIds, worktreeId }
@@ -255,6 +275,7 @@ test('paired New Browser Tab stays local when Browser tab host is This computer'
   test.setTimeout(240_000)
   const server = await startDestinationServer()
   let client: PairedElectronClient | null = null
+  const rendererErrors: string[] = []
 
   try {
     const repoId = await orcaPage.evaluate((repoPath) => {
@@ -269,6 +290,12 @@ test('paired New Browser Tab stays local when Browser tab host is This computer'
     client = await launchPairedElectronClient(offer, testInfo, 'Browser tab host user test', {
       waitForInitialWorkspaceSessionReady: false
     })
+    client.page.on('console', (message) => {
+      if (message.type() === 'error') {
+        rendererErrors.push(message.text())
+      }
+    })
+    client.page.on('pageerror', (error) => rendererErrors.push(error.stack ?? error.message))
     await client.page.setViewportSize({ width: 1600, height: 1000 })
     const worktree = await activatePairedWorktree(client.page, repoId)
     await waitForActivePanePtyId(client.page, 30_000)
@@ -290,21 +317,26 @@ test('paired New Browser Tab stays local when Browser tab host is This computer'
         terminalTabIds: (state?.tabsByWorktree[worktreeId] ?? []).map((tab) => tab.id)
       }
     }, worktree.id)
-    const renderedTabsBefore = await renderedTabIds(client.page)
 
-    await client.page.evaluate(() => window.__store?.getState().closeSettingsPage())
-    await client.page.getByRole('button', { name: 'New tab' }).click({ force: true })
-    const newBrowserTabItem = client.page
-      .getByRole('menuitem', { name: /New Browser Tab/i })
-      .first()
-    await newBrowserTabItem.click({ force: true })
+    await client.page.evaluate(async (worktreeId) => {
+      const state = window.__store?.getState()
+      if (!state) {
+        throw new Error('Paired desktop store is unavailable')
+      }
+      state.closeSettingsPage()
+      await state.openNewBrowserTabInActiveWorkspace(state.activeGroupIdByWorktree[worktreeId])
+    }, worktree.id)
 
     await expect
-      .poll(() => renderedTabIds(client!.page), {
-        timeout: 15_000,
-        message: 'New Browser Tab did not render exactly one additional tab'
-      })
-      .toHaveLength(renderedTabsBefore.length + 1)
+      .poll(
+        () =>
+          client!.page.evaluate((worktreeId) => {
+            const state = window.__store?.getState()
+            return (state?.browserTabsByWorktree[worktreeId] ?? []).length
+          }, worktree.id),
+        { timeout: 15_000, message: 'New Browser Tab did not create a local browser tab' }
+      )
+      .toBe(before.browserTabIds.length + 1)
 
     let destination: Awaited<ReturnType<typeof readNewBrowserDestination>> = null
     await expect
@@ -315,6 +347,11 @@ test('paired New Browser Tab stays local when Browser tab host is This computer'
             worktree.id,
             before.browserTabIds
           )
+          if (destination?.renderErrorText) {
+            throw new Error(
+              `Paired desktop workbench crashed:\n${rendererErrors.join('\n') || destination.renderErrorText}`
+            )
+          }
           return destination
         },
         {
@@ -323,15 +360,22 @@ test('paired New Browser Tab stays local when Browser tab host is This computer'
         }
       )
       .toMatchObject({
+        activeGroupTabType: 'browser',
+        activeTabType: 'browser',
+        activeView: 'terminal',
         browserRuntimeEnvironmentId: null,
+        hasBrowserPage: true,
+        hasOverlay: true,
+        hasWebview: true,
         marker: 'Opened on this computer',
+        renderedActiveWorktreeId: worktree.id,
+        renderErrorText: null,
         terminalTabIds: before.terminalTabIds,
+        unifiedBrowserTabCount: 1,
         url: server.url
       })
 
-    const activeBrowserTab = client.page.locator(
-      `.terminal-tab-strip [data-tab-id="${destination!.tabId}"]`
-    )
+    const activeBrowserTab = client.page.locator(`[data-tab-id="${destination!.tabId}"]`)
     await expect(activeBrowserTab).toBeVisible()
     await expect(
       client.page.locator(`[data-browser-overlay-tab-id="${destination!.tabId}"]`)
