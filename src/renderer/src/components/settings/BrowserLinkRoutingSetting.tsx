@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { SearchableSetting } from './SearchableSetting'
 import { SettingsRow, SettingsSwitchRow } from './SettingsFormControls'
 import { translate } from '@/i18n/i18n'
+import { isBrowserTabHostLockedToWorkspace, resolveBrowserTabHost } from '@/lib/browser-tab-host'
 
 type BrowserLinkRoutingSettingProps = {
   settings: GlobalSettings
@@ -17,6 +18,7 @@ export function BrowserLinkRoutingSetting({
   isMac,
   updateSettings
 }: BrowserLinkRoutingSettingProps): React.JSX.Element {
+  const browserTabHostLockedToWorkspace = isBrowserTabHostLockedToWorkspace()
   const linkRoutingTitle = translate(
     'auto.components.settings.BrowserPane.d3eb69c0aa',
     'Link Routing'
@@ -74,7 +76,8 @@ export function BrowserLinkRoutingSetting({
           description={browserTabHostDescription}
           control={
             <Select
-              value={settings.browserTabHost ?? 'local'}
+              value={resolveBrowserTabHost(settings.browserTabHost)}
+              disabled={browserTabHostLockedToWorkspace}
               onValueChange={(value) =>
                 updateSettings({ browserTabHost: value as 'local' | 'workspace' })
               }

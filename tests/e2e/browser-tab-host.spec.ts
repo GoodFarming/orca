@@ -20,6 +20,7 @@ type PairedWorktree = {
   path: string
 }
 
+/** Surfaces marker-server shutdown failures instead of leaking them across E2E cases. */
 async function closeServer(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {
@@ -32,6 +33,7 @@ async function closeServer(server: Server): Promise<void> {
   })
 }
 
+/** Provides client-local content that distinguishes the desktop browser from its paired runtime. */
 async function startDestinationServer(): Promise<DestinationServer> {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
@@ -49,6 +51,7 @@ async function startDestinationServer(): Promise<DestinationServer> {
   }
 }
 
+/** Removes the optional announcement that can obscure Browser settings in fresh profiles. */
 async function dismissTransientAnnouncement(page: Page): Promise<void> {
   const maybeLaterButton = page.getByRole('button', { name: 'Maybe Later' })
   if (await maybeLaterButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
@@ -56,6 +59,7 @@ async function dismissTransientAnnouncement(page: Page): Promise<void> {
   }
 }
 
+/** Opens Browser settings without taking control of the active desktop. */
 async function openBrowserSettings(page: Page): Promise<void> {
   await page.evaluate(() => {
     const state = window.__store?.getState()
@@ -69,6 +73,7 @@ async function openBrowserSettings(page: Page): Promise<void> {
   await dismissTransientAnnouncement(page)
 }
 
+/** Seeds the opposite host choice so the rendered control must perform the transition under test. */
 async function seedWorkspaceBrowserHost(page: Page, browserDefaultUrl: string): Promise<void> {
   await page.evaluate(
     async ({ browserDefaultUrl }) => {
@@ -88,6 +93,7 @@ async function seedWorkspaceBrowserHost(page: Page, browserDefaultUrl: string): 
   )
 }
 
+/** Exercises the visible selector and verifies both persistence and renderer reconciliation. */
 async function setBrowserTabHostToLocalThroughUi(page: Page): Promise<void> {
   const search = page.getByPlaceholder('Search settings')
   await search.fill('link routing')
@@ -138,6 +144,7 @@ async function setBrowserTabHostToLocalThroughUi(page: Page): Promise<void> {
     .toBe('local')
 }
 
+/** Activates the runtime-owned worktree only after its paired projection is authoritative. */
 async function activatePairedWorktree(page: Page, repoId: string): Promise<PairedWorktree> {
   await expect
     .poll(
@@ -182,6 +189,7 @@ async function activatePairedWorktree(page: Page, repoId: string): Promise<Paire
   return worktree
 }
 
+/** Correlates store, tab-strip, webview, and marker evidence for the newly created local tab. */
 async function readNewBrowserDestination(
   page: Page,
   worktreeId: string,

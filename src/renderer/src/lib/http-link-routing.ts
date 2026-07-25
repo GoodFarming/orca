@@ -167,6 +167,7 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
   })
 }
 
+/** Applies the explicit tab-host policy without inferring from whichever runtime is focused. */
 function resolveBrowserLinkOwner(
   state: ReturnType<StoreAccessor>,
   worktreeId: string,
@@ -190,6 +191,7 @@ function resolveBrowserLinkOwner(
   return { kind: 'local' }
 }
 
+/** Preserves the system-browser escape hatch when runtime capability disappears mid-open. */
 async function openRuntimeBrowserLink(
   url: string,
   worktreeId: string,

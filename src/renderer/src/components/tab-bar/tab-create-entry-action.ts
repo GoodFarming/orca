@@ -92,6 +92,8 @@ type OpenTabEntryWithOperationsArgs = {
   operations: TabEntryOperations
 }
 
+const WORKSPACE_RUNTIME_BROWSER_UNAVAILABLE_MESSAGE = 'Workspace runtime browser is unavailable.'
+
 function isExistsError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   return /\bEEXIST\b|already exists|file exists/i.test(message)
@@ -176,10 +178,10 @@ export async function openTabEntryWithOperations({
   }
 
   if (classification.kind === 'explicit-url' || classification.kind === 'host-url') {
-    const runtimeSessionActive =
-      browserTabHost === 'workspace' &&
-      operations.isWebRuntimeSessionActive(activeRuntimeEnvironmentId)
-    if (runtimeSessionActive) {
+    if (browserTabHost === 'workspace') {
+      if (!operations.isWebRuntimeSessionActive(activeRuntimeEnvironmentId)) {
+        throw new Error(WORKSPACE_RUNTIME_BROWSER_UNAVAILABLE_MESSAGE)
+      }
       const created = await operations.createWebRuntimeSessionBrowserTab({
         worktreeId,
         environmentId: activeRuntimeEnvironmentId,
@@ -189,8 +191,8 @@ export async function openTabEntryWithOperations({
       if (created) {
         return
       }
-      // Why: headless remote runtimes cannot host browser panes yet; a URL open
-      // should still give the user a usable client-local browser tab.
+      // Why: local fallback would violate the selected host and recreate split ownership.
+      throw new Error(WORKSPACE_RUNTIME_BROWSER_UNAVAILABLE_MESSAGE)
     }
     operations.createBrowserTab(worktreeId, classification.url, {
       activate: true,

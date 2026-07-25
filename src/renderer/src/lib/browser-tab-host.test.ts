@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { resolveBrowserTabHost } from './browser-tab-host'
+import { isBrowserTabHostLockedToWorkspace, resolveBrowserTabHost } from './browser-tab-host'
 
 const webClientFlag = globalThis as { __ORCA_WEB_CLIENT__?: boolean }
 
@@ -9,6 +9,7 @@ describe('resolveBrowserTabHost', () => {
   })
 
   it('defaults desktop clients to local ownership', () => {
+    expect(isBrowserTabHostLockedToWorkspace()).toBe(false)
     expect(resolveBrowserTabHost(undefined)).toBe('local')
   })
 
@@ -19,6 +20,7 @@ describe('resolveBrowserTabHost', () => {
   it('keeps web clients runtime-owned', () => {
     webClientFlag.__ORCA_WEB_CLIENT__ = true
 
+    expect(isBrowserTabHostLockedToWorkspace()).toBe(true)
     expect(resolveBrowserTabHost('local')).toBe('workspace')
   })
 })

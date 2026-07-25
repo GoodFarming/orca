@@ -204,19 +204,21 @@ describe('openTabEntryWithOperations', () => {
     expect(operations.createBrowserTab).not.toHaveBeenCalled()
   })
 
-  it('falls back to a local browser tab when paired runtime browser creation fails', async () => {
+  it('does not fall back locally when workspace browser creation fails', async () => {
     const operations = makeOperations({
       createWebRuntimeSessionBrowserTab: vi.fn().mockResolvedValue(false),
       isWebRuntimeSessionActive: vi.fn().mockReturnValue(true)
     })
 
-    await openTabEntryWithOperations({
-      ...baseArgs,
-      query: 'https://example.com',
-      activeRuntimeEnvironmentId: 'runtime-1',
-      browserTabHost: 'workspace',
-      operations
-    })
+    await expect(
+      openTabEntryWithOperations({
+        ...baseArgs,
+        query: 'https://example.com',
+        activeRuntimeEnvironmentId: 'runtime-1',
+        browserTabHost: 'workspace',
+        operations
+      })
+    ).rejects.toThrow('Workspace runtime browser is unavailable.')
 
     expect(operations.createWebRuntimeSessionBrowserTab).toHaveBeenCalledWith({
       worktreeId: 'wt-1',
@@ -224,12 +226,26 @@ describe('openTabEntryWithOperations', () => {
       url: 'https://example.com/',
       targetGroupId: 'group-1'
     })
-    expect(operations.createBrowserTab).toHaveBeenCalledWith('wt-1', 'https://example.com/', {
-      activate: true,
-      browserRuntimeEnvironmentId: null,
-      targetGroupId: 'group-1',
-      title: 'https://example.com/'
+    expect(operations.createBrowserTab).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back locally when the selected workspace browser is disconnected', async () => {
+    const operations = makeOperations({
+      isWebRuntimeSessionActive: vi.fn().mockReturnValue(false)
     })
+
+    await expect(
+      openTabEntryWithOperations({
+        ...baseArgs,
+        query: 'https://example.com',
+        activeRuntimeEnvironmentId: 'runtime-1',
+        browserTabHost: 'workspace',
+        operations
+      })
+    ).rejects.toThrow('Workspace runtime browser is unavailable.')
+
+    expect(operations.createWebRuntimeSessionBrowserTab).not.toHaveBeenCalled()
+    expect(operations.createBrowserTab).not.toHaveBeenCalled()
   })
 
   it('authorizes and opens absolute local files in the target group', async () => {
