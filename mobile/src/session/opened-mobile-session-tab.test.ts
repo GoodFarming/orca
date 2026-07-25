@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   activateOpenedMobileSessionTab,
   activateOpenedSourceControlDiffTab,
+  findEditableOpenedMobileSessionTab,
   findOpenedMobileSessionTab,
   refreshOpenedMobileSessionTabs,
   shouldActivateOpenedMobileSessionTab,
@@ -69,6 +70,32 @@ describe('findOpenedMobileSessionTab', () => {
     ]
 
     expect(findOpenedMobileSessionTab(tabs, 'README.md', { preferMode: 'diff' })?.id).toBe('diff-1')
+  })
+})
+
+describe('findEditableOpenedMobileSessionTab', () => {
+  it('selects an edit tab without falling back to same-path diff or preview tabs', () => {
+    const tabs: OpenedMobileSessionTabCandidate[] = [
+      { type: 'file', id: 'diff-1', mode: 'diff', relativePath: 'README.md' },
+      {
+        type: 'markdown',
+        id: 'preview-1',
+        mode: 'markdown-preview',
+        relativePath: 'README.md'
+      },
+      { type: 'markdown', id: 'edit-1', mode: 'edit', relativePath: 'README.md' }
+    ]
+
+    expect(findEditableOpenedMobileSessionTab(tabs, 'README.md')?.id).toBe('edit-1')
+    expect(findEditableOpenedMobileSessionTab(tabs.slice(0, 2), 'README.md')).toBeNull()
+  })
+
+  it('accepts legacy file-like tabs that do not publish a mode', () => {
+    const tabs: OpenedMobileSessionTabCandidate[] = [
+      { type: 'markdown', id: 'legacy-1', relativePath: 'README.md' }
+    ]
+
+    expect(findEditableOpenedMobileSessionTab(tabs, 'README.md')?.id).toBe('legacy-1')
   })
 })
 

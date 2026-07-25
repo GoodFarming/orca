@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createMobileFilePreviewHref,
+  createMobileFilePreviewSessionHref,
   displayNameFromPreviewPath,
   normalizeMobileFilePreviewRouteParams
 } from './mobile-file-preview-route'
@@ -126,6 +127,20 @@ describe('mobile-file-preview-route', () => {
         name: 'file.ts'
       }
     })
+  })
+
+  it('builds the existing session destination with encoded path and name values', () => {
+    expect(
+      createMobileFilePreviewSessionHref({
+        hostId: 'host/one',
+        worktreeId: 'repo::feature notes',
+        worktreeName: 'Feature & notes'
+      })
+    ).toBe('/h/host%2Fone/session/repo%3A%3Afeature%20notes?name=Feature%20%26%20notes')
+
+    expect(createMobileFilePreviewSessionHref({ hostId: 'host-1', worktreeId: 'wt-1' })).toBe(
+      '/h/host-1/session/wt-1'
+    )
   })
 
   it('derives display names from slash or backslash paths only for display', () => {

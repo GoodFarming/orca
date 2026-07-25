@@ -3,6 +3,7 @@ import { sourceKeyForPreview } from './mobile-file-preview-source'
 import {
   hasUnsavedMobileTerminalArtifactDraft,
   isEditableMobileTerminalArtifactPreview,
+  isOpenableMobileWorktreeFilePreview,
   shouldKeepDirtyDraftOnPreviewLoadResult
 } from './mobile-file-preview-editability'
 
@@ -35,6 +36,61 @@ describe('MobileFilePreviewScreen', () => {
         content: 'partial',
         truncated: true,
         byteLength: 1024
+      })
+    ).toBe(false)
+  })
+
+  it('offers Open for worktree text, code, HTML, and Markdown previews', () => {
+    expect(
+      isOpenableMobileWorktreeFilePreview('worktree', {
+        status: 'ready',
+        kind: 'markdown',
+        content: '# Notes',
+        truncated: false,
+        byteLength: 7
+      })
+    ).toBe(true)
+    expect(
+      isOpenableMobileWorktreeFilePreview('worktree', {
+        status: 'empty',
+        kind: 'markdown'
+      })
+    ).toBe(true)
+    expect(
+      isOpenableMobileWorktreeFilePreview('worktree', {
+        status: 'ready',
+        kind: 'text',
+        content: 'export const value = 1',
+        truncated: true,
+        byteLength: 500_000
+      })
+    ).toBe(true)
+    expect(
+      isOpenableMobileWorktreeFilePreview('worktree', {
+        status: 'ready',
+        kind: 'html',
+        content: '<main>Hello</main>',
+        truncated: false,
+        byteLength: 18
+      })
+    ).toBe(true)
+  })
+
+  it('does not offer Open for images or non-worktree artifacts', () => {
+    expect(
+      isOpenableMobileWorktreeFilePreview('worktree', {
+        status: 'ready',
+        kind: 'image',
+        dataUri: 'data:image/png;base64,aW1n'
+      })
+    ).toBe(false)
+    expect(
+      isOpenableMobileWorktreeFilePreview('terminalArtifact', {
+        status: 'ready',
+        kind: 'markdown',
+        content: '# Artifact',
+        truncated: false,
+        byteLength: 10
       })
     ).toBe(false)
   })

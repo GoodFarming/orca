@@ -358,6 +358,43 @@ describe('RuntimeFileCommands', () => {
     expect(openFile).not.toHaveBeenCalled()
   })
 
+  it('rejects local directories without creating an editor tab', async () => {
+    const openFile = vi.fn()
+    const { commands } = createRuntimeFileCommands({ openFile })
+    resolveAuthorizedPathMock.mockResolvedValue('/repo/docs')
+    statMock.mockResolvedValue({ isDirectory: () => true })
+
+    await expect(commands.openMobileFile('id:wt-1', 'docs')).rejects.toThrow(
+      "EISDIR: illegal operation on a directory, open '/repo/docs'"
+    )
+    expect(openFile).not.toHaveBeenCalled()
+  })
+
+  it('rejects remote directories without creating an editor tab', async () => {
+    const openFile = vi.fn()
+    const resolveRuntimeFileTarget = vi.fn(async () => ({
+      worktree: {
+        id: 'wt-1',
+        repoId: 'repo-1',
+        path: '/remote/repo'
+      },
+      connectionId: 'ssh-1'
+    }))
+    const { commands } = createRuntimeFileCommands({
+      openFile,
+      path: '/remote/repo',
+      resolveRuntimeFileTarget
+    })
+    vi.mocked(getSshFilesystemProvider).mockReturnValue({
+      stat: vi.fn().mockResolvedValue({ type: 'directory' })
+    } as never)
+
+    await expect(commands.openMobileFile('id:wt-1', 'docs')).rejects.toThrow(
+      "EISDIR: illegal operation on a directory, open '/remote/repo/docs'"
+    )
+    expect(openFile).not.toHaveBeenCalled()
+  })
+
   it('does not follow symlinks when reading runtime-local file explorer dirs', async () => {
     const { commands } = createRuntimeFileCommands()
     resolveAuthorizedPathMock.mockResolvedValue('/repo')
@@ -2038,7 +2075,7 @@ describe('RuntimeFileCommands', () => {
       const target = absoluteFileTarget(result)
 
       await rm(artifactPath)
-      await writeFile(artifactPath, 'changed!')
+      await writeFile(artifactPath, 'changed-content')
 
       await expect(
         commands.readTerminalArtifactPreview(

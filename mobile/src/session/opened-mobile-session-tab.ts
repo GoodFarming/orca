@@ -55,6 +55,23 @@ export function findOpenedMobileSessionTab<T extends OpenedMobileSessionTabCandi
   return matches.find((tab) => tab.mode !== 'diff') ?? matches[0] ?? null
 }
 
+export function findEditableOpenedMobileSessionTab<T extends OpenedMobileSessionTabCandidate>(
+  tabs: readonly T[],
+  relativePath: string
+): T | null {
+  const matches = tabs.filter(
+    (tab) =>
+      tab.type !== 'browser' &&
+      tab.type !== 'terminal' &&
+      tab.relativePath === relativePath &&
+      tab.mode !== 'diff' &&
+      tab.mode !== 'markdown-preview'
+  )
+  return (
+    matches.find((tab) => tab.mode === 'edit') ?? matches.find((tab) => tab.mode == null) ?? null
+  )
+}
+
 export type OpenedSourceControlDiffActivationState = {
   activated: boolean
   activationSeq: number

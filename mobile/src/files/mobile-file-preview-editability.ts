@@ -10,6 +10,16 @@ export function isEditableMobileTerminalArtifactPreview(preview: MobileFilePrevi
   )
 }
 
+export function isOpenableMobileWorktreeFilePreview(
+  source: MobileFilePreviewSource['source'] | undefined,
+  preview: MobileFilePreviewResult
+): boolean {
+  return (
+    source === 'worktree' &&
+    ((preview.status === 'ready' && preview.kind !== 'image') || preview.status === 'empty')
+  )
+}
+
 export function hasUnsavedMobileTerminalArtifactDraft({
   source,
   draftSourceKey,

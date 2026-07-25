@@ -651,9 +651,12 @@ export class RuntimeFileCommands {
     connectionId?: string
   ): Promise<void> {
     try {
-      await (connectionId
+      const stats = await (connectionId
         ? this.statRemoteTerminalPath(filePath, connectionId)
         : stat(await resolveAuthorizedPath(filePath, this.host.requireStore())))
+      if (stats.isDirectory()) {
+        throw new Error(`EISDIR: illegal operation on a directory, open '${filePath}'`)
+      }
     } catch (error) {
       if (
         isENOENT(error) ||

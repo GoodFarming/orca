@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, BackHandler, Pressable, Text, View, useWindowDimensions } from 'react-native'
+import {
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Pressable,
+  Text,
+  View,
+  useWindowDimensions
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { ChevronLeft, Save } from 'lucide-react-native'
+import { ChevronLeft, FileText, Save } from 'lucide-react-native'
 import { getWorktreeLabel } from '../session/worktree-label'
+import { useMobileWorktreeFileOpener } from '../session/use-mobile-worktree-file-opener'
 import { colors, spacing } from '../theme/mobile-theme'
 import { useForceReconnect, useHostClient } from '../transport/client-context'
 import {
@@ -15,6 +24,7 @@ import {
 } from './mobile-file-preview-request'
 import { MobileFilePreviewBody } from './MobileFilePreviewBody'
 import {
+  createMobileFilePreviewSessionHref,
   displayNameFromPreviewPath,
   type MobileFilePreviewRouteState
 } from './mobile-file-preview-route'
@@ -23,6 +33,7 @@ import { normalizeMobileFilePreviewLineColumn } from './mobile-file-preview-line
 import {
   hasUnsavedMobileTerminalArtifactDraft,
   isEditableMobileTerminalArtifactPreview,
+  isOpenableMobileWorktreeFilePreview,
   shouldKeepDirtyDraftOnPreviewLoadResult
 } from './mobile-file-preview-editability'
 import { filePreviewStyles as styles } from './mobile-file-preview-styles'
@@ -43,6 +54,10 @@ export function MobileFilePreviewScreen({ route }: Props) {
   const [savedContent, setSavedContent] = useState('')
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [openFailure, setOpenFailure] = useState<{
+    scopeKey: string | null
+    message: string
+  } | null>(null)
   const draftContentRef = useRef(draftContent)
   const savedContentRef = useRef(savedContent)
   const draftSourceKeyRef = useRef<string | null>(null)
@@ -67,6 +82,31 @@ export function MobileFilePreviewScreen({ route }: Props) {
         : null,
     [previewParams]
   )
+
+  const returnToSession = useCallback(() => {
+    if (!previewParams) {
+      return
+    }
+    router.dismissTo(
+      createMobileFilePreviewSessionHref(previewParams) as Parameters<typeof router.dismissTo>[0]
+    )
+  }, [previewParams, router])
+  const setScopedOpenError = useCallback(
+    (message: string | null) => {
+      setOpenFailure(message ? { scopeKey: previewSourceKey, message } : null)
+    },
+    [previewSourceKey]
+  )
+  const { opening, openWorktreeFile } = useMobileWorktreeFileOpener({
+    client,
+    connectionState: connState,
+    worktreeId: previewParams?.worktreeId ?? '',
+    scopeKey: previewSourceKey,
+    onActivated: returnToSession,
+    onErrorChange: setScopedOpenError
+  })
+  const openError =
+    openFailure?.scopeKey === previewSourceKey ? (openFailure?.message ?? null) : null
 
   useEffect(() => {
     setPreviewSource(routePreviewSource)
@@ -182,6 +222,10 @@ export function MobileFilePreviewScreen({ route }: Props) {
   const meta = previewParams ? `${worktreeLabel} - ${displayPath}` : 'Preview'
   const isEditableTerminalArtifact =
     previewSource?.source === 'terminalArtifact' && isEditableMobileTerminalArtifactPreview(preview)
+  const previewMatchesRoute = previewSourceKey === routePreviewSourceKey
+  const canOpenWorktreeFile =
+    previewMatchesRoute && isOpenableMobileWorktreeFilePreview(previewSource?.source, preview)
+  const openDisabled = opening || !client || connState !== 'connected'
   const canSaveArtifact =
     isEditableTerminalArtifact &&
     draftSourceKeyRef.current === previewSourceKey &&
@@ -217,6 +261,12 @@ export function MobileFilePreviewScreen({ route }: Props) {
       setSaving(false)
     }
   }, [canSaveArtifact, client, draftContent, previewSource, savedContent, saving])
+
+  const openWorktreeFileInPane = useCallback(() => {
+    if (previewSource?.source === 'worktree') {
+      openWorktreeFile(previewSource.relativePath)
+    }
+  }, [openWorktreeFile, previewSource])
 
   const requestBack = useCallback(() => {
     if (!hasUnsavedTerminalArtifactDraft) {
@@ -264,9 +314,36 @@ export function MobileFilePreviewScreen({ route }: Props) {
             >
               <Save size={18} color={colors.textPrimary} strokeWidth={2.2} />
             </Pressable>
+          ) : canOpenWorktreeFile ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.openButton,
+                pressed && !openDisabled && styles.openButtonPressed,
+                openDisabled && styles.openButtonDisabled
+              ]}
+              onPress={openWorktreeFileInPane}
+              disabled={openDisabled}
+              accessibilityRole="button"
+              accessibilityLabel="Open file in editor"
+              accessibilityState={{ disabled: openDisabled, busy: opening }}
+            >
+              {opening ? (
+                <ActivityIndicator size="small" color={colors.textPrimary} />
+              ) : (
+                <>
+                  <FileText size={15} color={colors.textPrimary} strokeWidth={2.2} />
+                  <Text style={styles.openButtonText}>Open</Text>
+                </>
+              )}
+            </Pressable>
           ) : null}
         </View>
       </SafeAreaView>
+      {openError ? (
+        <Text style={styles.openErrorText} accessibilityLiveRegion="polite">
+          {openError}
+        </Text>
+      ) : null}
       <MobileFilePreviewBody
         preview={preview}
         relativePath={displayPath}

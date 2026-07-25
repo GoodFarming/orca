@@ -84,6 +84,35 @@ export const filePreviewStyles = StyleSheet.create({
   saveButtonDisabled: {
     opacity: 0.42
   },
+  openButton: {
+    minWidth: 72,
+    height: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderRadius: radii.button,
+    backgroundColor: colors.bgRaised,
+    paddingHorizontal: spacing.md
+  },
+  openButtonPressed: {
+    opacity: 0.78
+  },
+  openButtonDisabled: {
+    opacity: 0.42
+  },
+  openButtonText: {
+    color: colors.textPrimary,
+    fontSize: typography.bodySize,
+    fontWeight: '600'
+  },
+  openErrorText: {
+    color: colors.statusRed,
+    fontSize: typography.metaSize,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.bgPanel
+  },
   scroll: {
     flex: 1,
     backgroundColor: colors.editorSurface

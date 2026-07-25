@@ -110,6 +110,13 @@ export function createMobileFilePreviewHref(
   }
 }
 
+export function createMobileFilePreviewSessionHref(
+  params: Pick<MobileFilePreviewRouteParams, 'hostId' | 'worktreeId' | 'worktreeName'>
+): string {
+  const path = `/h/${encodeURIComponent(params.hostId)}/session/${encodeURIComponent(params.worktreeId)}`
+  return params.worktreeName ? `${path}?name=${encodeURIComponent(params.worktreeName)}` : path
+}
+
 export function displayNameFromPreviewPath(relativePath: string): string {
   return relativePath.split(/[\\/]/).findLast(Boolean) ?? relativePath
 }
