@@ -1437,6 +1437,7 @@ export class SshRelaySession {
       const envelope = params as {
         paneKey?: unknown
         launchToken?: unknown
+        codexApprovalReviewer?: unknown
         tabId?: unknown
         worktreeId?: unknown
         env?: unknown
@@ -1465,6 +1466,7 @@ export class SshRelaySession {
         {
           paneKey: envelope.paneKey,
           launchToken: typeof envelope.launchToken === 'string' ? envelope.launchToken : undefined,
+          codexApprovalReviewer: envelope.codexApprovalReviewer,
           tabId: typeof envelope.tabId === 'string' ? envelope.tabId : undefined,
           worktreeId: typeof envelope.worktreeId === 'string' ? envelope.worktreeId : undefined,
           env: typeof envelope.env === 'string' ? envelope.env : undefined,

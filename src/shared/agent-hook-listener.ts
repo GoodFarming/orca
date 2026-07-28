@@ -315,6 +315,8 @@ export type AgentHookEventPayload = {
   source?: AgentHookSource
   /** Ephemeral Orca launch identity stamped into the PTY env for this process. */
   launchToken?: string
+  /** Reviewer ownership stamped by Orca at Codex launch and echoed by the managed hook. */
+  codexApprovalReviewer?: ExplicitCodexApprovalReviewer
   tabId?: string
   worktreeId?: string
   /** SSH connection the event arrived on, or null for local (only ingestRemote stamps it; the HTTP path can't know the mux). See docs/design/agent-status-over-ssh.md §5. */
@@ -4143,6 +4145,10 @@ export function normalizeHookPayload(
   }
   const worktreeId = readStringField(record, 'worktreeId')
   const launchToken = readStringField(record, 'launchToken')
+  const codexApprovalReviewer =
+    source === 'codex'
+      ? parseExplicitCodexApprovalReviewer(readStringField(record, 'codexApprovalReviewer'))
+      : undefined
 
   const hookPayloadRecord = hookPayload as Record<string, unknown>
   let promptInteractionKey: string | undefined
@@ -4330,6 +4336,7 @@ export function normalizeHookPayload(
         paneKey,
         source,
         launchToken,
+        codexApprovalReviewer,
         tabId,
         worktreeId,
         connectionId: null,
