@@ -135,6 +135,7 @@ describe('Cmd+J lifted creation actions', () => {
   })
 
   it('creates a local browser tab for explicitly local workspaces while a runtime is focused', async () => {
+    delete pairedWebFlag.__ORCA_WEB_CLIENT__
     createWebRuntimeSessionBrowserTabMock.mockResolvedValue(false)
     const store = createTestStore()
     seedActiveWorkspace(store)
@@ -143,7 +144,10 @@ describe('Cmd+J lifted creation actions', () => {
       worktreesByRepo: {
         [TEST_REPO.id]: [makeWorktree({ id: 'wt-1', repoId: TEST_REPO.id, hostId: 'local' })]
       },
-      settings: { activeRuntimeEnvironmentId: 'focused-runtime' } as AppState['settings']
+      settings: {
+        activeRuntimeEnvironmentId: 'focused-runtime',
+        browserTabHost: 'workspace'
+      } as AppState['settings']
     })
 
     await store.getState().openNewBrowserTabInActiveWorkspace('group-1')
@@ -152,13 +156,88 @@ describe('Cmd+J lifted creation actions', () => {
     expect(store.getState().browserTabsByWorktree['wt-1'] ?? []).toHaveLength(1)
   })
 
+  it('preserves the desktop-local browser for direct SSH workspaces', async () => {
+    delete pairedWebFlag.__ORCA_WEB_CLIENT__
+    const store = createTestStore()
+    seedActiveWorkspace(store)
+    store.setState({
+      repos: [
+        {
+          ...TEST_REPO,
+          connectionId: 'server',
+          executionHostId: 'ssh:server'
+        }
+      ],
+      worktreesByRepo: {
+        [TEST_REPO.id]: [makeWorktree({ id: 'wt-1', repoId: TEST_REPO.id, hostId: 'ssh:server' })]
+      },
+      settings: {
+        activeRuntimeEnvironmentId: null,
+        browserTabHost: 'workspace'
+      } as AppState['settings']
+    })
+
+    await store.getState().openNewBrowserTabInActiveWorkspace('group-1')
+
+    expect(createWebRuntimeSessionBrowserTabMock).not.toHaveBeenCalled()
+    expect(store.getState().browserTabsByWorktree['wt-1'] ?? []).toHaveLength(1)
+  })
+
+  it('does not create a local browser tab for unresolved desktop ownership', async () => {
+    delete pairedWebFlag.__ORCA_WEB_CLIENT__
+    const store = createTestStore()
+    seedActiveWorkspace(store)
+    store.setState({
+      repos: [
+        { ...TEST_REPO, executionHostId: 'runtime:hub-a' },
+        { ...TEST_REPO, executionHostId: 'runtime:hub-b' }
+      ],
+      worktreesByRepo: {
+        [TEST_REPO.id]: [makeWorktree({ id: 'wt-1', repoId: TEST_REPO.id })]
+      },
+      settings: {
+        activeRuntimeEnvironmentId: 'hub-b',
+        browserTabHost: 'workspace'
+      } as AppState['settings']
+    })
+
+    await store.getState().openNewBrowserTabInActiveWorkspace('group-1')
+
+    expect(createWebRuntimeSessionBrowserTabMock).not.toHaveBeenCalled()
+    expect(store.getState().browserTabsByWorktree['wt-1'] ?? []).toEqual([])
+  })
+
+  it('does not create a local browser tab in paired web without a runtime owner', async () => {
+    const store = createTestStore()
+    seedActiveWorkspace(store)
+    store.setState({
+      repos: [{ ...TEST_REPO, executionHostId: 'local' }],
+      worktreesByRepo: {
+        [TEST_REPO.id]: [makeWorktree({ id: 'wt-1', repoId: TEST_REPO.id, hostId: 'local' })]
+      },
+      settings: {
+        activeRuntimeEnvironmentId: null,
+        browserTabHost: 'local'
+      } as AppState['settings']
+    })
+
+    await store.getState().openNewBrowserTabInActiveWorkspace('group-1')
+
+    expect(createWebRuntimeSessionBrowserTabMock).not.toHaveBeenCalled()
+    expect(store.getState().browserTabsByWorktree['wt-1'] ?? []).toEqual([])
+  })
+
   it('creates local browser and terminal tabs for the synthetic floating workspace while a runtime is focused', async () => {
+    delete pairedWebFlag.__ORCA_WEB_CLIENT__
     createWebRuntimeSessionBrowserTabMock.mockResolvedValue(false)
     createWebRuntimeSessionTerminalMock.mockResolvedValue(false)
     const store = createTestStore()
     seedStore(store, {
       activeWorktreeId: FLOATING_TERMINAL_WORKTREE_ID,
-      settings: { activeRuntimeEnvironmentId: 'runtime-1' } as AppState['settings'],
+      settings: {
+        activeRuntimeEnvironmentId: 'runtime-1',
+        browserTabHost: 'workspace'
+      } as AppState['settings'],
       groupsByWorktree: {
         [FLOATING_TERMINAL_WORKTREE_ID]: [
           {

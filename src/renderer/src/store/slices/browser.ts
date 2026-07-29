@@ -50,15 +50,13 @@ import {
   toRuntimeExecutionHostId,
   type ExecutionHostId
 } from '../../../../shared/execution-host'
-import {
-  getExecutionHostIdForWorktree,
-  getRuntimeEnvironmentIdForWorktree
-} from '@/lib/worktree-runtime-owner'
+import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { resolveWorktreeOperationRouteResult } from '@/lib/worktree-operation-route'
 import {
   addAdditionalValidWorkspaceKeys,
   type WorkspaceSessionHydrationOptions
 } from '@/lib/workspace-session-hydration-keys'
-import { resolveBrowserTabHost } from '@/lib/browser-tab-host'
+import { resolveBrowserTabTarget } from '@/lib/browser-tab-host'
 import { buildValidWorktreeIdsForSessionHydration } from './degraded-repo-worktree-validity'
 
 type CreateBrowserTabOptions = {
@@ -734,16 +732,23 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
       return
     }
     const defaultUrl = state.browserDefaultUrl ?? 'about:blank'
-    const runtimeEnvironmentId =
-      resolveBrowserTabHost(state.settings?.browserTabHost) === 'workspace'
-        ? getRuntimeEnvironmentIdForWorktree(state, worktreeId)
-        : null
-    if (runtimeEnvironmentId) {
+    const route =
+      worktreeId === FLOATING_TERMINAL_WORKTREE_ID
+        ? {
+            kind: 'resolved' as const,
+            route: { executionHostId: 'local' as const, runtimeEnvironmentId: null }
+          }
+        : resolveWorktreeOperationRouteResult(state, worktreeId)
+    const target = resolveBrowserTabTarget(state.settings?.browserTabHost, route)
+    if (target.kind === 'unavailable') {
+      return
+    }
+    if (target.kind === 'runtime') {
       const { createWebRuntimeSessionBrowserTab } = await import('@/runtime/web-runtime-session')
       try {
         const created = await createWebRuntimeSessionBrowserTab({
           worktreeId,
-          environmentId: runtimeEnvironmentId,
+          environmentId: target.runtimeEnvironmentId,
           url: defaultUrl,
           targetGroupId: groupId
         })

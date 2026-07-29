@@ -12,7 +12,6 @@ import {
 } from '@/runtime/web-runtime-session'
 import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
-import type { BrowserTab as BrowserTabState, GlobalSettings } from '../../../../shared/types'
 import type { RuntimeFileListState } from '../quick-open-file-list'
 import {
   classifyTabEntryQuery,
@@ -20,8 +19,13 @@ import {
   type TabEntryActionClassification,
   type TabEntryOptionsContext
 } from './tab-create-entry-classifier'
-import { resolveBrowserTabHost } from '@/lib/browser-tab-host'
+import { resolveBrowserTabTarget, type BrowserTabTarget } from '@/lib/browser-tab-host'
+import { resolveWorktreeOperationRouteResult } from '@/lib/worktree-operation-route'
 import { openAbsoluteTabEntryFile } from './tab-create-entry-absolute-file'
+import {
+  openBrowserTabEntryWithOperations,
+  type BrowserTabEntryOperations
+} from './tab-create-entry-browser-open'
 import {
   getTabEntryAllowAbsolutePaths,
   getTabEntryFileOperationContext,
@@ -54,20 +58,8 @@ export type TabCreateEntryArgs = {
   fileList: RuntimeFileListState
 }
 
-export type TabEntryOperations = {
-  createBrowserTab: (
-    worktreeId: string,
-    url: string,
-    options?: {
-      activate?: boolean
-      browserRuntimeEnvironmentId?: string | null
-      targetGroupId?: string
-      title?: string
-    }
-  ) => BrowserTabState
+export type TabEntryOperations = BrowserTabEntryOperations & {
   createRuntimePath: typeof createRuntimePath
-  createWebRuntimeSessionBrowserTab: typeof createWebRuntimeSessionBrowserTab
-  isWebRuntimeSessionActive: typeof isWebRuntimeSessionActive
   openFile: (
     file: Omit<OpenFile, 'id' | 'isDirty'>,
     options?: { preview?: boolean; targetGroupId?: string }
@@ -84,15 +76,12 @@ type OpenTabEntryWithOperationsArgs = {
   groupId: string
   worktreePath: string
   runtimeContext: RuntimeFileOperationArgs
-  activeRuntimeEnvironmentId: string | null
   allowAbsolutePaths: boolean
-  browserTabHost?: GlobalSettings['browserTabHost']
+  browserTabTarget: BrowserTabTarget
   localPlatform: TabEntryLocalPlatform
   classification?: TabEntryActionClassification
   operations: TabEntryOperations
 }
-
-const WORKSPACE_RUNTIME_BROWSER_UNAVAILABLE_MESSAGE = 'Workspace runtime browser is unavailable.'
 
 function isExistsError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
@@ -157,9 +146,8 @@ async function openExistingFile(args: {
 }
 
 export async function openTabEntryWithOperations({
-  activeRuntimeEnvironmentId,
   allowAbsolutePaths,
-  browserTabHost,
+  browserTabTarget,
   classification: selectedClassification,
   fileList,
   groupId,
@@ -178,27 +166,12 @@ export async function openTabEntryWithOperations({
   }
 
   if (classification.kind === 'explicit-url' || classification.kind === 'host-url') {
-    if (browserTabHost === 'workspace') {
-      if (!operations.isWebRuntimeSessionActive(activeRuntimeEnvironmentId)) {
-        throw new Error(WORKSPACE_RUNTIME_BROWSER_UNAVAILABLE_MESSAGE)
-      }
-      const created = await operations.createWebRuntimeSessionBrowserTab({
-        worktreeId,
-        environmentId: activeRuntimeEnvironmentId,
-        url: classification.url,
-        targetGroupId: groupId
-      })
-      if (created) {
-        return
-      }
-      // Why: local fallback would violate the selected host and recreate split ownership.
-      throw new Error(WORKSPACE_RUNTIME_BROWSER_UNAVAILABLE_MESSAGE)
-    }
-    operations.createBrowserTab(worktreeId, classification.url, {
-      activate: true,
-      browserRuntimeEnvironmentId: null,
-      targetGroupId: groupId,
-      title: classification.url
+    await openBrowserTabEntryWithOperations({
+      browserTabTarget,
+      groupId,
+      operations,
+      url: classification.url,
+      worktreeId
     })
     return
   }
@@ -261,9 +234,33 @@ export async function openTabBarEntry(args: TabCreateEntryArgs): Promise<void> {
   if (!worktree) {
     throw new Error('No active worktree.')
   }
+  const localPlatform = getRendererAppPlatform() === 'win32' ? 'windows' : 'posix'
+  // Why: URL opening does not require file-mutation authority, so detect it before
+  // disconnected SSH ownership guards.
+  const browserClassification =
+    args.classification ??
+    classifyTabEntryQuery(args.query, args.fileList, {
+      allowAbsolutePaths: false,
+      localPlatform
+    })
+  const browserRoute = resolveWorktreeOperationRouteResult(state, args.worktreeId)
+  const browserTabTarget = resolveBrowserTabTarget(state.settings?.browserTabHost, browserRoute)
+  if (browserClassification.kind === 'explicit-url' || browserClassification.kind === 'host-url') {
+    await openBrowserTabEntryWithOperations({
+      browserTabTarget,
+      groupId: args.groupId,
+      operations: {
+        createBrowserTab: state.createBrowserTab,
+        createWebRuntimeSessionBrowserTab,
+        isWebRuntimeSessionActive
+      },
+      url: browserClassification.url,
+      worktreeId: args.worktreeId
+    })
+    return
+  }
   const runtimeContext = getTabEntryFileOperationContext(state, args.worktreeId, worktree.path)
   const allowAbsolutePaths = isTabEntryAbsolutePathAllowed(runtimeContext)
-  const localPlatform = getRendererAppPlatform() === 'win32' ? 'windows' : 'posix'
   await openTabEntryWithOperations({
     query: args.query,
     fileList: args.fileList,
@@ -271,9 +268,8 @@ export async function openTabBarEntry(args: TabCreateEntryArgs): Promise<void> {
     groupId: args.groupId,
     worktreePath: worktree.path,
     runtimeContext,
-    activeRuntimeEnvironmentId: runtimeContext.settings?.activeRuntimeEnvironmentId?.trim() ?? null,
     allowAbsolutePaths,
-    browserTabHost: resolveBrowserTabHost(state.settings?.browserTabHost),
+    browserTabTarget,
     localPlatform,
     classification: args.classification,
     operations: {
