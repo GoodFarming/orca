@@ -132,9 +132,8 @@ describe('mobile markdown bridge', () => {
 
   it('rejects an unknown markdown tab ID', async () => {
     openMarkdownFile()
-    setupWindow({
-      readFile: vi.fn().mockResolvedValue({ content: '# known\n', isBinary: false })
-    })
+    const readFile = vi.fn().mockResolvedValue({ content: '# known\n', isBinary: false })
+    setupWindow({ readFile })
     const detach = attachMobileMarkdownBridge()
 
     try {
@@ -150,6 +149,7 @@ describe('mobile markdown bridge', () => {
         ok: false,
         error: 'tab_not_found'
       })
+      expect(readFile).not.toHaveBeenCalled()
     } finally {
       detach()
     }
@@ -164,6 +164,7 @@ describe('mobile markdown bridge', () => {
     const detach = attachMobileMarkdownBridge()
 
     try {
+      expect(useAppStore.getState().activeGroupIdByWorktree['wt-1']).toBe(terminalGroupId)
       const response = await sendRequest({
         id: 'read-inactive-group',
         operation: 'read',
@@ -234,6 +235,7 @@ describe('mobile markdown bridge', () => {
     const detachAutosave = attachEditorAutosaveController(useAppStore as never)
 
     try {
+      expect(useAppStore.getState().activeGroupIdByWorktree['wt-1']).toBe(terminalGroupId)
       const response = await sendRequest({
         id: 'save-2',
         operation: 'save',
