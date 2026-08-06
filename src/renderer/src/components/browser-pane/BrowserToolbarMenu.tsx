@@ -160,7 +160,8 @@ export function BrowserToolbarMenu({
       const profile = await createBrowserSessionProfile(
         'isolated',
         trimmed,
-        useNativeUserAgent ? { userAgentMode: 'native' } : undefined
+        useNativeUserAgent ? { userAgentMode: 'native' } : undefined,
+        LOCAL_EXECUTION_HOST_ID
       )
       if (!profile) {
         if (mountedRef.current) {

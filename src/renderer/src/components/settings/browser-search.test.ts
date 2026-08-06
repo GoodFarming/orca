@@ -80,7 +80,7 @@ describe('browser link routing modifier copy', () => {
       'Default Home Page',
       'Default Search Engine',
       'Default Zoom',
-      'Link Routing',
+      'Link Routing & Browser Tab Host',
       'Hold Shift to open in Orca',
       'Localhost Worktree Labels',
       'Session & Cookies'

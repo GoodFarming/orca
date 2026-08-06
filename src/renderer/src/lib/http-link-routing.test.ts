@@ -212,9 +212,7 @@ describe('openHttpLink', () => {
     expect(registerLocalhostLabelMock).not.toHaveBeenCalled()
   })
 
-  // Why: runtimes bind per workspace, so activeRuntimeEnvironmentId is commonly
-  // null while a pane is remote — ownership must come from the click source.
-  it('keeps a runtime-owned link out of Orca when no runtime is globally active', () => {
+  it('routes a runtime-owned link to the explicitly selected local browser host', () => {
     storeState.settings = { openLinksInApp: true, activeRuntimeEnvironmentId: null }
 
     openHttpLink('https://example.com/', {
@@ -222,9 +220,12 @@ describe('openHttpLink', () => {
       sourceOwner: { kind: 'runtime', runtimeEnvironmentId: 'env-1' }
     })
 
-    expect(openUrlMock).toHaveBeenCalledWith('https://example.com/')
-    expect(createBrowserTabMock).not.toHaveBeenCalled()
-    expect(setActiveWorktreeMock).not.toHaveBeenCalled()
+    expect(openUrlMock).not.toHaveBeenCalled()
+    expect(createBrowserTabMock).toHaveBeenCalledWith('wt-1', 'https://example.com/', {
+      activate: true,
+      browserRuntimeEnvironmentId: null
+    })
+    expect(setActiveWorktreeMock).toHaveBeenCalledWith('wt-1')
   })
 
   it('labels explicit local links from the local scan instead of a merged remote port', async () => {
@@ -575,7 +576,8 @@ describe('openHttpLink modifier routing', () => {
 
     expect(setActiveWorktreeMock).toHaveBeenCalledWith('wt-1')
     expect(createBrowserTabMock).toHaveBeenCalledWith('wt-1', 'https://example.com/', {
-      activate: true
+      activate: true,
+      browserRuntimeEnvironmentId: null
     })
     expect(openUrlMock).not.toHaveBeenCalled()
   })
@@ -598,8 +600,7 @@ describe('openHttpLink modifier routing', () => {
     expect(createBrowserTabMock).not.toHaveBeenCalled()
   })
 
-  // Why: remote-owned links must never land in an Orca tab that cannot reach them.
-  it('never routes a remote source into Orca even when inverting', () => {
+  it('routes direct SSH links into the explicitly selected local host when inverting', () => {
     storeState.settings = { openLinksInApp: false, openLinksInAppModifierInverts: true }
 
     openHttpLink('https://example.com/', {
@@ -608,8 +609,11 @@ describe('openHttpLink modifier routing', () => {
       sourceOwner: { kind: 'ssh', connectionId: 'conn-1' }
     })
 
-    expect(openUrlMock).toHaveBeenCalledWith('https://example.com/')
-    expect(createBrowserTabMock).not.toHaveBeenCalled()
+    expect(openUrlMock).not.toHaveBeenCalled()
+    expect(createBrowserTabMock).toHaveBeenCalledWith('wt-1', 'https://example.com/', {
+      activate: true,
+      browserRuntimeEnvironmentId: null
+    })
   })
 
   it('keeps forceSystemBrowser unconditional', () => {

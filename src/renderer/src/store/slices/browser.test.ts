@@ -1262,7 +1262,7 @@ describe('createBrowserSlice runtime guard', () => {
 
     const created = await store
       .getState()
-      .createBrowserSessionProfile('isolated', 'Local Isolated', 'local')
+      .createBrowserSessionProfile('isolated', 'Local Isolated', undefined, 'local')
 
     expect(created).toEqual(localProfile)
     expect(mockApi.browser.sessionCreateProfile).toHaveBeenCalledWith({

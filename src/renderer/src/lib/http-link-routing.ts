@@ -106,8 +106,6 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
     return
   }
   const state = storeAccessor?.()
-  const remoteRuntimeActive = Boolean(state?.settings?.activeRuntimeEnvironmentId?.trim())
-  const sourceIsLocal = sourceOwner ? sourceOwner.kind === 'local' : !remoteRuntimeActive
   const openLinksInApp = state?.settings?.openLinksInApp === true
   const modifier = resolveModifierRouting(
     Boolean(modifierHeld),
@@ -115,7 +113,6 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
     state?.settings?.openLinksInAppModifierInverts === true
   )
   const routeToOrca =
-    sourceIsLocal &&
     !forceSystemBrowser &&
     !modifier.wantsSystemBrowser &&
     Boolean(worktreeId) &&

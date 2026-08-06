@@ -199,7 +199,8 @@ export type BrowserSlice = {
   createBrowserSessionProfile: (
     scope: 'isolated' | 'imported',
     label: string,
-    options?: BrowserSessionProfileCreateOptions
+    options?: BrowserSessionProfileCreateOptions,
+    hostId?: ExecutionHostId
   ) => Promise<BrowserSessionProfile | null>
   deleteBrowserSessionProfile: (profileId: string) => Promise<boolean>
   importCookiesToProfile: (
@@ -1910,10 +1911,10 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
     }
   },
 
-  createBrowserSessionProfile: async (scope, label, options) => {
-    const hostId = getBrowserSettingsHostId(get())
-    const runtimeEnvironmentId = getBrowserSettingsRuntimeEnvironmentId(get())
-    if (runtimeEnvironmentId) {
+  createBrowserSessionProfile: async (scope, label, options, hostId) => {
+    const requestedHostId = getRequestedBrowserHostId(get(), hostId)
+    const runtimeTarget = getBrowserRuntimeTarget(requestedHostId)
+    if (runtimeTarget) {
       try {
         const result = await callRuntimeRpc<BrowserProfileCreateResult>(
           runtimeTarget,
