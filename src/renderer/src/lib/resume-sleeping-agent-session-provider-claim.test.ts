@@ -16,6 +16,7 @@ function makeRecord(
   paneKey: string,
   origin: SleepingAgentSessionRecord['origin'] = 'quit'
 ): SleepingAgentSessionRecord {
+  const capturedAt = Date.now()
   return {
     paneKey,
     tabId: 'tab-1',
@@ -24,8 +25,8 @@ function makeRecord(
     providerSession: { key: 'session_id', id: 'sess-1' },
     prompt: 'finish the task',
     state: 'working',
-    capturedAt: 1,
-    updatedAt: 1,
+    capturedAt,
+    updatedAt: capturedAt,
     origin,
     launchConfig: {
       agentCommand: 'omp',

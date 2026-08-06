@@ -60,6 +60,7 @@ describe('STA-1111 worktree reopen does not fork-bomb tabs', () => {
 
     for (let reopen = 0; reopen < 4; reopen++) {
       const paneKey = `slept-pane-${reopen}:0`
+      const capturedAt = Date.now() + reopen
       useAppStore.setState((s) => ({
         sleepingAgentSessionsByPaneKey: {
           ...s.sleepingAgentSessionsByPaneKey,
@@ -72,8 +73,8 @@ describe('STA-1111 worktree reopen does not fork-bomb tabs', () => {
             prompt: 'resume prior task',
             state: 'working',
             origin: 'live',
-            capturedAt: 1000 + reopen,
-            updatedAt: 1000 + reopen,
+            capturedAt,
+            updatedAt: capturedAt,
             terminalTitle: 'Codex'
           }
         }

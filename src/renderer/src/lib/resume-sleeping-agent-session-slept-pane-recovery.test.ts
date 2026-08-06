@@ -16,6 +16,7 @@ afterEach(() => {
 function makeRecord(
   overrides: Partial<SleepingAgentSessionRecord> = {}
 ): SleepingAgentSessionRecord {
+  const capturedAt = Date.now()
   return {
     paneKey: makePaneKey('tab-1', LEAF_ID),
     tabId: 'tab-1',
@@ -24,8 +25,8 @@ function makeRecord(
     providerSession: { key: 'session_id', id: 'sess-1' },
     prompt: 'finish the task',
     state: 'working',
-    capturedAt: 1,
-    updatedAt: 1,
+    capturedAt,
+    updatedAt: capturedAt,
     origin: 'worktree-sleep',
     ...overrides
   }

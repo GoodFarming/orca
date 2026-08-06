@@ -13,6 +13,7 @@ afterEach(() => {
 
 describe('Pi live session does not spawn a duplicate resume tab', () => {
   it('keeps a done-but-alive Pi pane instead of forking a new tab', () => {
+    const capturedAt = Date.now()
     const providerSession = {
       key: 'session_id' as const,
       id: 'pi-1',
@@ -26,8 +27,8 @@ describe('Pi live session does not spawn a duplicate resume tab', () => {
       providerSession,
       prompt: '',
       state: 'working',
-      capturedAt: 1,
-      updatedAt: 1,
+      capturedAt,
+      updatedAt: capturedAt,
       origin: 'live'
     }
     useAppStore.setState({

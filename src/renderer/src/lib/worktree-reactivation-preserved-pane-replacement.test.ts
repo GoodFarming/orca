@@ -98,6 +98,7 @@ function seedHuskTab(
 
 function seedSleepingRecord(worktreeId: string, sessionId: string): void {
   const paneKey = makePaneKey(HUSK_TAB_ID, LEAF_ID)
+  const capturedAt = Date.now()
   useAppStore.setState((s) => ({
     sleepingAgentSessionsByPaneKey: {
       ...s.sleepingAgentSessionsByPaneKey,
@@ -110,8 +111,8 @@ function seedSleepingRecord(worktreeId: string, sessionId: string): void {
         prompt: 'resume prior task',
         state: 'working' as const,
         origin: 'quit' as const,
-        capturedAt: 1000,
-        updatedAt: 1000,
+        capturedAt,
+        updatedAt: capturedAt,
         terminalTitle: 'Codex'
       }
     }
@@ -282,6 +283,7 @@ describe('preserved-pane replacement contract on workspace activation', () => {
     }
     useAppStore.setState(state)
     const paneKey = makePaneKey(webTabId, LEAF_ID)
+    const capturedAt = Date.now()
     useAppStore.setState((s) => ({
       sleepingAgentSessionsByPaneKey: {
         ...s.sleepingAgentSessionsByPaneKey,
@@ -294,8 +296,8 @@ describe('preserved-pane replacement contract on workspace activation', () => {
           prompt: 'resume prior task',
           state: 'working' as const,
           origin: 'quit' as const,
-          capturedAt: 1000,
-          updatedAt: 1000,
+          capturedAt,
+          updatedAt: capturedAt,
           terminalTitle: 'Codex'
         }
       }

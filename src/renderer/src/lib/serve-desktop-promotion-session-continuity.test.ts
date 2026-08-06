@@ -151,6 +151,7 @@ function makeTerminalTab(id: string): Record<string, unknown> {
 
 function makeSurvivingAgentRecord(index: number): SleepingAgentSessionRecord {
   const pane = AGENT_PANES[index]
+  const capturedAt = Date.now()
   return {
     paneKey: makePaneKey(pane.tabId, pane.leafId),
     tabId: pane.tabId,
@@ -159,8 +160,8 @@ function makeSurvivingAgentRecord(index: number): SleepingAgentSessionRecord {
     providerSession: { key: 'session_id', id: `provider-session-${index + 1}` },
     prompt: 'keep working',
     state: 'working',
-    capturedAt: 1,
-    updatedAt: 1,
+    capturedAt,
+    updatedAt: capturedAt,
     // Why: Cmd+Q captures live agents as quit-origin records — the exact input
     // the promoted renderer replays.
     origin: 'quit'
