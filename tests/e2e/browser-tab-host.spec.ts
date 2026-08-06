@@ -30,6 +30,7 @@ async function closeServer(server: Server): Promise<void> {
       }
       resolve()
     })
+    server.closeAllConnections()
   })
 }
 
@@ -54,9 +55,10 @@ async function startDestinationServer(): Promise<DestinationServer> {
 /** Removes the optional announcement that can obscure Browser settings in fresh profiles. */
 async function dismissTransientAnnouncement(page: Page): Promise<void> {
   const maybeLaterButton = page.getByRole('button', { name: 'Maybe Later' })
-  if (await maybeLaterButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
-    await maybeLaterButton.click()
-  }
+  await maybeLaterButton.waitFor({ state: 'visible', timeout: 1_000 }).then(
+    () => maybeLaterButton.click(),
+    () => undefined
+  )
 }
 
 /** Opens Browser settings without taking control of the active desktop. */
@@ -393,7 +395,6 @@ test('paired New Browser Tab stays local when Browser tab host is This computer'
       worktree.id
     )
   } finally {
-    await client?.dispose()
-    await server.close()
+    await Promise.resolve(client?.dispose()).finally(() => server.close())
   }
 })
