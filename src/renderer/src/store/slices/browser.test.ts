@@ -10,6 +10,7 @@ import {
 import { GRAB_BUDGET, type BrowserPageAnnotation } from '../../../../shared/browser-grab-types'
 import { clearRuntimeCompatibilityCacheForTests } from '../../runtime/runtime-rpc-client'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
+import type { BrowserDetectedInfo } from '../../../../shared/runtime-types'
 
 const createWebRuntimeSessionBrowserTabMock = vi.hoisted(() => vi.fn())
 const runtimeEnvironmentCall = vi.fn()
@@ -1278,7 +1279,7 @@ describe('createBrowserSlice runtime guard', () => {
 
   it('caches explicitly detected local browsers without replacing the selected remote host', async () => {
     const store = createTestStore()
-    const remoteBrowsers = [
+    const remoteBrowsers: BrowserDetectedInfo[] = [
       {
         family: 'edge',
         label: 'Remote Edge',
@@ -1286,7 +1287,7 @@ describe('createBrowserSlice runtime guard', () => {
         selectedProfile: 'Default'
       }
     ]
-    const localBrowsers = [
+    const localBrowsers: BrowserDetectedInfo[] = [
       {
         family: 'chrome',
         label: 'Local Chrome',
