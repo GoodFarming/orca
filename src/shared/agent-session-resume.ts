@@ -195,9 +195,10 @@ export function extractAgentProviderSession(
     case 'gemini':
     case 'droid':
     case 'hermes':
-    // Why: Kimi Code posts a Claude-shaped `session_id` (e.g. session_<uuid>).
+    // Why: Hermes reports the managed-hook session id used by `--resume`.
     // falls through
     case 'kimi': {
+      // Why: Kimi Code posts a Claude-shaped `session_id` (e.g. session_<uuid>).
       const id = readSessionId(payload, ['session_id'])
       return id ? { key: 'session_id', id } : null
     }
