@@ -92,7 +92,7 @@ test('resumes an agent session after quit when its daemon PTY died while the app
     // "no clean shutdown" semantics as POSIX SIGKILL.
     process.kill(daemonPid, 'SIGKILL')
 
-    overrideResumeLaunchCommand(session.userDataDir, PROVIDER_SESSION_ID)
+    overridePersistedAgentResumeCommand(session.userDataDir, PROVIDER_SESSION_ID)
 
     const secondLaunch = await session.launch()
     secondApp = secondLaunch.app
