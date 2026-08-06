@@ -67,6 +67,7 @@ describe('modifier routing across link source owners', () => {
       openLinksInApp?: boolean
       openLinksInAppModifierInverts?: boolean
       activeRuntimeEnvironmentId?: string | null
+      browserTabHost?: 'local' | 'workspace'
     },
     setActiveWorktree: setActiveWorktreeMock,
     createBrowserTab: createBrowserTabMock
