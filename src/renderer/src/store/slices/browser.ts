@@ -34,6 +34,7 @@ import type { RecentlyClosedTabPosition } from './recently-closed-tabs'
 import { callRuntimeRpc, type RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
 import type {
+  BrowserDetectedInfo,
   BrowserDetectProfilesResult,
   BrowserProfileClearDefaultCookiesResult,
   BrowserProfileCreateResult,
@@ -208,9 +209,9 @@ export type BrowserSlice = {
     hostId?: ExecutionHostId
   ) => Promise<BrowserCookieImportResult>
   clearBrowserSessionImportState: (hostId?: ExecutionHostId) => void
-  detectedBrowsers: DetectedBrowserProfileSource[]
+  detectedBrowsers: BrowserDetectedInfo[]
   detectedBrowsersLoaded: boolean
-  detectedBrowsersByHostId: Partial<Record<ExecutionHostId, DetectedBrowserProfileSource[]>>
+  detectedBrowsersByHostId: Partial<Record<ExecutionHostId, BrowserDetectedInfo[]>>
   detectedBrowsersLoadedByHostId: Partial<Record<ExecutionHostId, true>>
   fetchDetectedBrowsers: (hostId?: ExecutionHostId) => Promise<void>
   importCookiesFromBrowser: (
@@ -337,7 +338,7 @@ function detectedBrowserListByHostUpdate(
     | 'settings'
   >,
   hostId: ExecutionHostId,
-  browsers: DetectedBrowserProfileSource[]
+  browsers: BrowserDetectedInfo[]
 ): Partial<BrowserSlice> {
   return {
     ...(getBrowserSettingsHostId(state) === hostId
@@ -2120,8 +2121,7 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
       return
     }
     try {
-      const browsers =
-        (await window.api.browser.sessionDetectBrowsers()) as DetectedBrowserProfileSource[]
+      const browsers = (await window.api.browser.sessionDetectBrowsers()) as BrowserDetectedInfo[]
       set((s) => detectedBrowserListByHostUpdate(s, requestedHostId, browsers))
     } catch {
       /* best-effort — empty list is acceptable fallback */

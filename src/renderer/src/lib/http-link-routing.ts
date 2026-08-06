@@ -35,6 +35,7 @@ type StoreAccessor = () => {
       | 'openLinksInAppModifierInverts'
       | 'activeRuntimeEnvironmentId'
       | 'localhostWorktreeLabelsEnabled'
+      | 'browserTabHost'
     >
   > | null
   setActiveWorktree: (worktreeId: string) => void
