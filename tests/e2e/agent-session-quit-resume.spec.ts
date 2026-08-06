@@ -1,5 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import path from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
 import type { ElectronApplication } from '@stablyai/playwright-test'
 import { test, expect } from './helpers/orca-app'
 import { TEST_REPO_PATH_FILE } from './global-setup'
@@ -13,54 +12,12 @@ import {
 } from './helpers/terminal'
 import { ensureTerminalVisible, waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 import { attachRepoAndOpenTerminal, createRestartSession } from './helpers/orca-restart'
-import { PROTOCOL_VERSION } from '../../src/main/daemon/types'
-import { DEFAULT_LOCAL_ORCA_PROFILE_ID } from '../../src/shared/orca-profiles'
+import {
+  overridePersistedAgentResumeCommand,
+  readOrcaDaemonPid
+} from './helpers/agent-session-persistence'
 
 const PROVIDER_SESSION_ID = 'e2e-quit-resume-session'
-
-function stubPersistedResumeCommand(userDataDir: string): void {
-  const dataPath = path.join(
-    userDataDir,
-    'profiles',
-    DEFAULT_LOCAL_ORCA_PROFILE_ID,
-    'orca-data.json'
-  )
-  const data = JSON.parse(readFileSync(dataPath, 'utf8')) as {
-    workspaceSession?: {
-      sleepingAgentSessionsByPaneKey?: Record<
-        string,
-        {
-          providerSession?: { id?: unknown }
-          launchConfig?: {
-            agentCommand?: string
-            agentArgs?: string
-            agentEnv?: Record<string, string>
-          }
-        }
-      >
-    }
-  }
-  const record = Object.values(data.workspaceSession?.sleepingAgentSessionsByPaneKey ?? {}).find(
-    (candidate) => candidate.providerSession?.id === PROVIDER_SESSION_ID
-  )
-  if (!record) {
-    throw new Error('Expected a persisted resumable agent session')
-  }
-  record.launchConfig = { agentCommand: 'echo', agentArgs: '', agentEnv: {} }
-  writeFileSync(dataPath, `${JSON.stringify(data, null, 2)}\n`, 'utf8')
-}
-
-function readDaemonPid(userDataDir: string): number {
-  const raw = readFileSync(
-    path.join(userDataDir, 'daemon', `daemon-v${PROTOCOL_VERSION}.pid`),
-    'utf8'
-  )
-  const parsed = JSON.parse(raw) as { pid?: unknown }
-  if (typeof parsed.pid !== 'number') {
-    throw new Error(`Daemon pid file did not contain a numeric pid: ${raw}`)
-  }
-  return parsed.pid
-}
 
 test.describe.configure({ mode: 'serial' })
 
@@ -122,11 +79,11 @@ test('resumes an agent session after quit when its daemon PTY died while the app
       }
     )
 
-    const daemonPid = readDaemonPid(session.userDataDir)
+    const daemonPid = readOrcaDaemonPid(session.userDataDir)
 
     await session.close(firstApp)
     firstApp = null
-    stubPersistedResumeCommand(session.userDataDir)
+    overridePersistedAgentResumeCommand(session.userDataDir, PROVIDER_SESSION_ID)
 
     // Why: simulates the daemon (and the agent CLI inside it) dying while the
     // app is closed — reboot, crash, or update kill. SIGKILL leaves history

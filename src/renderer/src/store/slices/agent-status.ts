@@ -15,7 +15,6 @@ import {
 import {
   agentProviderSessionsEqual,
   getAgentResumeArgv,
-  isCompletedAgentWithLiveRecoveryRecord,
   isResumableTuiAgent,
   type AgentProviderSessionMetadata,
   type ResumableTuiAgent,
@@ -1845,6 +1844,15 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
         const canReuseExistingProviderSession =
           existing?.agentType === identity.agentType &&
           (existing.state !== 'done' || payload.state === 'done')
+        const existingSleepingRecord = s.sleepingAgentSessionsByPaneKey[paneKey]
+        // Why: the first warm-reattach status can omit provider metadata while
+        // the persisted nonterminal record still owns the same pane and agent.
+        const rehydratedProviderSession =
+          existingSleepingRecord?.agent === identity.agentType &&
+          existingSleepingRecord.state !== 'done' &&
+          payload.state !== 'done'
+            ? existingSleepingRecord.providerSession
+            : undefined
         const providerSession =
           metadata?.providerSession ??
           (canReuseExistingProviderSession ? existing.providerSession : undefined) ??
@@ -1876,7 +1884,6 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
         })
           ? registryEntry?.launchConfig
           : undefined
-        const existingSleepingRecord = s.sleepingAgentSessionsByPaneKey[paneKey]
         // Why: a completed turn leaves the TUI session alive and resumable at its prompt for any
         // resumable agent (Claude/Codex/Pi/…), not just Pi — so keep its persisted recovery anchor
         // even when done. Else a cold restore after an abrupt app death (macOS logout, #9454) drops
@@ -2033,13 +2040,24 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
           entry.state === 'done' && !retainsResumableRecoveryIdentity
             ? null
             : (entry.worktreeId ?? findAgentPaneWorktreeId(s, entry.paneKey))
+        // Why: omitted routing metadata inherits the persisted owner, while an
+        // explicit local null must replace an older remote connection id.
+        const recoveryEntry =
+          entry.connectionId !== undefined || existingSleepingRecord?.connectionId === undefined
+            ? entry
+            : { ...entry, connectionId: existingSleepingRecord.connectionId }
         const liveRecoveryRecord = liveRecoveryWorktreeId
           ? sleepingRecordFromEntry({
               state: s,
               // Why: a completed resumable-agent turn leaves the TUI session alive — keep resume identity active without representing done as pending work.
               entry: retainsResumableRecoveryIdentity
-                ? { ...entry, state: 'working', prompt: '', lastAssistantMessage: undefined }
-                : entry,
+                ? {
+                    ...recoveryEntry,
+                    state: 'working',
+                    prompt: '',
+                    lastAssistantMessage: undefined
+                  }
+                : recoveryEntry,
               worktreeId: liveRecoveryWorktreeId,
               capturedAt: updatedAt,
               launchConfig: launchConfigSource,
@@ -2082,7 +2100,7 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
         let nextAutomaticAgentResumeClaimsByTabId = s.automaticAgentResumeClaimsByTabId
         if (liveRecoveryRecord) {
           if (
-            retainsCompletedRecoveryIdentity ||
+            retainsResumableRecoveryIdentity ||
             !recoveryRecordMatches(existingSleepingRecord, liveRecoveryRecord)
           ) {
             nextSleepingAgentSessions = {

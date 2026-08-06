@@ -7,7 +7,6 @@ import {
 } from '../../../shared/agent-session-resume'
 import { parsePaneKey } from '../../../shared/stable-pane-id'
 import { lastInputBlocksHibernation } from './agent-hibernation-input-guard'
-import { isCompletedPiCompatibleAgentWithLiveRecoveryRecord } from './pi-compatible-live-recovery-record'
 import type { GlobalSettings, TerminalLayoutSnapshot, TerminalTab } from '../../../shared/types'
 import { parseRemoteRuntimePtyId } from '@/runtime/runtime-terminal-stream'
 
@@ -140,16 +139,16 @@ function getEligiblePane(args: {
     mobileLockedPtyIds
   } = args
   const sleepingRecord = sleepingAgentSessionsByPaneKey[entry.paneKey]
-  // Why: a Pi-compatible done hook ends a turn, not its TUI. Its live
+  // Why: a resumable done hook ends a turn, not its TUI. Its live
   // recovery checkpoint must not make the pane look already hibernated.
-  const hasOnlyLivePiCompatibleRecoveryIdentity =
-    isCompletedPiCompatibleAgentWithLiveRecoveryRecord(entry, sleepingRecord, tab.worktreeId)
   if (
     entry.state !== 'done' ||
     entry.interrupted === true ||
     Boolean(entry.subagents?.length) ||
     hasUnsettledOrUnknownDispatch(entry) ||
-    (sleepingRecord && !hasOnlyLivePiCompatibleRecoveryIdentity)
+    (sleepingRecord &&
+      (!isCompletedAgentWithLiveRecoveryRecord(entry, sleepingRecord) ||
+        sleepingRecord.worktreeId !== tab.worktreeId))
   ) {
     return null
   }

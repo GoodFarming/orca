@@ -8343,7 +8343,12 @@ describe('connectPanePty', () => {
       expect(deps.clearTabPtyId).toHaveBeenCalledWith('tab-1', 'restored-session')
       expect(deps.syncPanePtyLayoutBinding).not.toHaveBeenCalledWith(2, 'restored-session')
       expect(deps.syncPanePtyLayoutBinding).toHaveBeenCalledWith(2, 'fresh-resume-pty')
-      expect(mockStoreState.clearSleepingAgentSession).toHaveBeenCalledWith(paneKey)
+      expect(mockStoreState.clearSleepingAgentSession).not.toHaveBeenCalledWith(paneKey)
+      expect(mockStoreState.claimAutomaticAgentResume).toHaveBeenCalledWith('tab-1', {
+        worktreeId: 'wt-1',
+        launchAgent: 'codex',
+        providerSession: { key: 'session_id', id: 'codex-session-1' }
+      })
       expect(window.api.pty.clearPendingPaneSerializer).toHaveBeenCalledWith(paneKey, 1)
     } finally {
       globalThis.setTimeout = originalSetTimeout
@@ -10015,8 +10020,12 @@ describe('connectPanePty', () => {
         })
       })
     )
-    // Why: consuming the record prevents a later worktree activation from launching a duplicate resume tab.
-    expect(mockStoreState.clearSleepingAgentSession).toHaveBeenCalledWith(paneKey)
+    expect(mockStoreState.clearSleepingAgentSession).not.toHaveBeenCalledWith(paneKey)
+    expect(mockStoreState.claimAutomaticAgentResume).toHaveBeenCalledWith('tab-1', {
+      worktreeId: 'wt-1',
+      launchAgent: 'codex',
+      providerSession: { key: 'session_id', id: 'codex-session-1', transcriptPath }
+    })
   })
 
   it('marks the pane as freshly started when main declined an unverifiable resume', async () => {
@@ -10822,7 +10831,12 @@ describe('connectPanePty', () => {
     )
     expect(deps.onShowSessionRestoredBanner).toHaveBeenCalledTimes(1)
     expect(deps.onShowSessionRestoredBanner).toHaveBeenCalledWith(2, 'restored')
-    expect(mockStoreState.clearSleepingAgentSession).toHaveBeenCalledWith(paneKey)
+    expect(mockStoreState.clearSleepingAgentSession).not.toHaveBeenCalledWith(paneKey)
+    expect(mockStoreState.claimAutomaticAgentResume).toHaveBeenCalledWith('tab-1', {
+      worktreeId: 'wt-1',
+      launchAgent: 'codex',
+      providerSession: { key: 'session_id', id: 'codex-session-1' }
+    })
   })
 
   it('resumes a local sleeping pane in place when the restored PTY hint is missing', async () => {
@@ -10925,7 +10939,12 @@ describe('connectPanePty', () => {
 
     expect(deps.onShowSessionRestoredBanner).toHaveBeenCalledTimes(1)
     expect(deps.onShowSessionRestoredBanner).toHaveBeenCalledWith(2, 'restored')
-    expect(mockStoreState.clearSleepingAgentSession).toHaveBeenCalledWith(paneKey)
+    expect(mockStoreState.clearSleepingAgentSession).not.toHaveBeenCalledWith(paneKey)
+    expect(mockStoreState.claimAutomaticAgentResume).toHaveBeenCalledWith('tab-1', {
+      worktreeId: 'wt-1',
+      launchAgent: 'codex',
+      providerSession: { key: 'session_id', id: 'codex-session-1' }
+    })
   })
 
   it('says the fresh-spawn resume started fresh when main declined it', async () => {

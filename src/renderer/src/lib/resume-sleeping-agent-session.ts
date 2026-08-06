@@ -152,7 +152,7 @@ function activeOrQueuedResumeClaimsProviderSession(
 
 // Why: an interrupted turn is still resumable — `claude --resume` reopens the transcript at the
 // prompt — so discarding those records only stranded the session across wake and restart.
-function isInvalidWorktreeActivationRecord(record: SleepingAgentSessionRecord): boolean {
+export function isInvalidWorktreeActivationRecord(record: SleepingAgentSessionRecord): boolean {
   if (!record.origin && record.state === 'done') {
     return true
   }
@@ -206,6 +206,9 @@ export function resumeSleepingAgentSessionsForWorktree(
       if (!isPaneOwned || activeClaimKeys.has(claimKey)) {
         state.clearSleepingAgentSession(record.paneKey)
       }
+      continue
+    }
+    if (ownTabResumeClaimMatchesProviderSession(record, currentState)) {
       continue
     }
     if (activeOrQueuedResumeClaimsProviderSession(record, currentState, isPaneOwned)) {

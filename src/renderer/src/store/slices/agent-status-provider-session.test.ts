@@ -121,6 +121,55 @@ describe('recordAgentProviderSession', () => {
     expect(store.getState().agentStatusByPaneKey['tab-1:leaf-1']?.providerSession).toBeUndefined()
   })
 
+  it('inherits omitted connection ownership but preserves an explicit local null', () => {
+    const store = createTestStore()
+    const providerSession = { key: 'session_id' as const, id: 'codex-session-1' }
+    store.setState({
+      tabsByWorktree: { 'wt-1': [makeTab({ id: 'tab-1', worktreeId: 'wt-1' })] },
+      sleepingAgentSessionsByPaneKey: {
+        'tab-1:leaf-1': {
+          paneKey: 'tab-1:leaf-1',
+          tabId: 'tab-1',
+          worktreeId: 'wt-1',
+          connectionId: 'ssh-old',
+          agent: 'codex',
+          providerSession,
+          prompt: 'first task',
+          state: 'working',
+          capturedAt: 10,
+          updatedAt: 10,
+          origin: 'live'
+        }
+      }
+    } as Partial<AppState>)
+
+    store
+      .getState()
+      .setAgentStatus(
+        'tab-1:leaf-1',
+        { state: 'done', prompt: 'first task', agentType: 'codex' },
+        'Codex',
+        { updatedAt: 20, stateStartedAt: 10 },
+        { tabId: 'tab-1', worktreeId: 'wt-1' },
+        { providerSession }
+      )
+    expect(store.getState().sleepingAgentSessionsByPaneKey['tab-1:leaf-1']?.connectionId).toBe(
+      'ssh-old'
+    )
+
+    store
+      .getState()
+      .setAgentStatus(
+        'tab-1:leaf-1',
+        { state: 'done', prompt: 'first task', agentType: 'codex' },
+        'Codex',
+        { updatedAt: 30, stateStartedAt: 10 },
+        { tabId: 'tab-1', worktreeId: 'wt-1', connectionId: null },
+        { providerSession }
+      )
+    expect(store.getState().sleepingAgentSessionsByPaneKey['tab-1:leaf-1']?.connectionId).toBeNull()
+  })
+
   it('uses the session file as part of Pi resume ownership only', () => {
     const base = {
       paneKey: 'tab-1:leaf-1',

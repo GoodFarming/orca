@@ -15,8 +15,8 @@ import {
 } from './helpers/terminal'
 import { ensureTerminalVisible, waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 import { attachRepoAndOpenTerminal, createRestartSession } from './helpers/orca-restart'
-import { PROTOCOL_VERSION } from '../../src/main/daemon/types'
 import { DEFAULT_LOCAL_ORCA_PROFILE_ID } from '../../src/shared/orca-profiles'
+import { readOrcaDaemonPid } from './helpers/agent-session-persistence'
 
 const PROVIDER_SESSION_ID = 'e2e-live-force-exit-session'
 
@@ -52,19 +52,6 @@ function readPersistedData(userDataDir: string): PersistedData {
 
 function writePersistedData(userDataDir: string, data: PersistedData): void {
   writeFileSync(dataFilePath(userDataDir), `${JSON.stringify(data, null, 2)}\n`, 'utf8')
-}
-
-function daemonPidPath(userDataDir: string): string {
-  return path.join(userDataDir, 'daemon', `daemon-v${PROTOCOL_VERSION}.pid`)
-}
-
-function readDaemonPid(userDataDir: string): number {
-  const raw = readFileSync(daemonPidPath(userDataDir), 'utf8')
-  const parsed = JSON.parse(raw) as { pid?: unknown }
-  if (typeof parsed.pid !== 'number') {
-    throw new Error(`Daemon pid file did not contain a numeric pid: ${raw}`)
-  }
-  return parsed.pid
 }
 
 function hasExited(proc: ChildProcess): boolean {
@@ -244,7 +231,7 @@ test('resumes a live agent record after force-exit restart when pane PTY ownersh
       )
     }
 
-    const daemonPid = readDaemonPid(session.userDataDir)
+    const daemonPid = readOrcaDaemonPid(session.userDataDir)
     await forceKillElectronApp(firstApp)
     firstApp = null
     killPid(daemonPid)
