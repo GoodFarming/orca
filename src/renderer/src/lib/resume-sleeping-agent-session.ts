@@ -1,9 +1,9 @@
 import { useAppStore } from '@/store'
 import {
   agentProviderSessionsEqual,
+  SLEEPING_AGENT_RECORD_MAX_AGE_MS,
   type SleepingAgentSessionRecord
 } from '../../../shared/agent-session-resume'
-import { SLEEPING_AGENT_RECORD_MAX_AGE_MS } from '../../../shared/agent-session-resume'
 import {
   getProviderSessionClaimKey,
   isPassiveCompletedHibernationEvidence,
