@@ -5,6 +5,10 @@ import {
   resolveModifierRouting
 } from './http-link-routing'
 
+vi.mock('@/runtime/web-runtime-session', () => ({
+  createWebRuntimeSessionBrowserTab: vi.fn(() => Promise.resolve(false))
+}))
+
 describe('resolveModifierRouting', () => {
   it('is inert without the modifier regardless of settings', () => {
     for (const openLinksInApp of [true, false]) {
@@ -88,17 +92,19 @@ describe('modifier routing across link source owners', () => {
     })
 
     expect(createBrowserTabMock).toHaveBeenCalledWith('wt-1', 'https://example.com/', {
-      activate: true
+      activate: true,
+      browserRuntimeEnvironmentId: null
     })
   })
 
-  it('never lets a modifier pull a runtime-owned link into Orca', () => {
+  it('never lets a modifier pull a runtime-owned link into Orca', async () => {
     for (const inverts of [true, false]) {
       vi.clearAllMocks()
       storeState.settings = {
         openLinksInApp: false,
         openLinksInAppModifierInverts: inverts,
-        activeRuntimeEnvironmentId: null
+        activeRuntimeEnvironmentId: null,
+        browserTabHost: 'workspace'
       }
 
       openHttpLink('https://example.com/', {
@@ -107,7 +113,9 @@ describe('modifier routing across link source owners', () => {
         sourceOwner: { kind: 'runtime', runtimeEnvironmentId: 'env-1' }
       })
 
-      expect(openUrlMock).toHaveBeenCalledWith('https://example.com/')
+      await vi.waitFor(() => {
+        expect(openUrlMock).toHaveBeenCalledWith('https://example.com/')
+      })
       expect(createBrowserTabMock).not.toHaveBeenCalled()
     }
   })
