@@ -113,9 +113,14 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
     openLinksInApp,
     state?.settings?.openLinksInAppModifierInverts === true
   )
+  const modifierMayOpenInOrca =
+    !modifier.wantsOrca ||
+    sourceOwner?.kind === 'local' ||
+    (!sourceOwner && !state?.settings?.activeRuntimeEnvironmentId?.trim())
   const routeToOrca =
     !forceSystemBrowser &&
     !modifier.wantsSystemBrowser &&
+    modifierMayOpenInOrca &&
     Boolean(worktreeId) &&
     (openLinksInApp || modifier.wantsOrca)
 
